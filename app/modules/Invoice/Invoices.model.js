@@ -117,6 +117,11 @@ const InvoiceSchema = Schema(
     customerMobile: {
       type: String,
     },
+    paymentMethod: {
+      type: String,
+      enum: ['Cash', 'Card', 'Mobile'],
+      default: 'Cash' 
+    },
   },
   { timestamps: true }
 );
