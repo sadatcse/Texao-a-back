@@ -16,6 +16,8 @@ import {
   getMonthlyOrderTimings,
   getWeeklySalesByMonth,
   getFavoriteProductsByDay,
+  getFilteredInvoices,
+  getKitchenOrdersByBranch,
   getSalesGroupedByDayName,
   getSalesByDateRange,
   gettop5InvoicesByBranch,
@@ -45,7 +47,7 @@ InvoiceRoutes.get("/get-id/:id", getInvoiceById);
 // Create a new invoice
 InvoiceRoutes.post("/post", createInvoice);
 
-// Delete an invoice by ID
+InvoiceRoutes.get("/:branch/filter", getFilteredInvoices);
 InvoiceRoutes.delete("/delete/:id", removeInvoice);
 
 InvoiceRoutes.get("/:branch/weekly-sales", getWeeklySalesByMonth);
@@ -60,4 +62,5 @@ InvoiceRoutes.get("/:branch/favorite-products", getFavoriteProductsByDay);
 InvoiceRoutes.get("/:branch/trending-orders", getTrendingProducts);
 InvoiceRoutes.get("/:branch/order-timings", getMonthlyOrderTimings);
 InvoiceRoutes.get("/:branch/sales", getSalesByDateRange);
+InvoiceRoutes.get("/:branch/kitchen", getKitchenOrdersByBranch);
 export default InvoiceRoutes;

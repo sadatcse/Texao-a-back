@@ -1,6 +1,8 @@
 import Invoice from "./Invoices.model.js";
-import moment from 'moment';
+
 import Product from "../Product/Product.model.js";
+import moment from 'moment-timezone';
+
 // Get all invoices
 export async function getAllInvoices(req, res) {
   try {
@@ -11,6 +13,96 @@ export async function getAllInvoices(req, res) {
   }
 }
 
+export async function getFilteredInvoices(req, res) {
+  const { branch } = req.params;
+  const {
+    orderType,
+    paymentStatus,
+    orderStatus,
+    search,
+    startDate,
+    endDate,
+  } = req.query;
+
+  try {
+    const query = { branch };
+
+    // Add filters if they are provided
+    if (orderType) query.orderType = orderType;
+    if (paymentStatus) query.paymentStatus = paymentStatus;
+    if (orderStatus) query.orderStatus = orderStatus;
+
+    // --- CORRECTED DATE LOGIC ---
+    if (startDate && endDate) {
+      // Case 1: A full date range is provided
+      query.dateTime = {
+        $gte: moment(startDate).startOf("day").toDate(),
+        $lte: moment(endDate).endOf("day").toDate(),
+      };
+    } else if (startDate && !endDate) {
+      // Case 2: Only a single date is provided
+      query.dateTime = {
+        $gte: moment(startDate).startOf("day").toDate(),
+        $lte: moment(startDate).endOf("day").toDate(), // Filter for the entire single day
+      };
+    } else {
+      // Case 3: No date is provided, default to today
+      query.dateTime = {
+        $gte: moment().startOf("day").toDate(),
+        $lte: moment().endOf("day").toDate(),
+      };
+    }
+
+    // Handle search term filtering for various fields
+    if (search) {
+      const isNumeric = !isNaN(parseFloat(search)) && isFinite(search);
+      query.$or = [
+        { invoiceSerial: { $regex: search, $options: "i" } },
+        { customerName: { $regex: search, $options: "i" } },
+        { loginUserName: { $regex: search, $options: "i" } },
+      ];
+      if (isNumeric) {
+        query.$or.push({ token: Number(search) });
+      }
+    }
+
+    const invoices = await Invoice.find(query).sort({ dateTime: -1 });
+
+    res.status(200).json(invoices);
+  } catch (err) {
+    console.error("Error fetching filtered invoices:", err);
+    res.status(500).json({ error: "Failed to fetch invoices: " + err.message });
+  }
+}
+
+
+
+export async function getKitchenOrdersByBranch(req, res) {
+  const { branch } = req.params;
+  const timezone = "Asia/Dhaka"; // Timezone for your location
+
+  try {
+    // Define the start and end of the current day in the local timezone
+    const startOfToday = moment().tz(timezone).startOf('day').toDate();
+    const endOfToday = moment().tz(timezone).endOf('day').toDate();
+
+    // Find invoices for the specified branch, within today's date range,
+    // and with a status of "pending" or "cooking"
+    const kitchenOrders = await Invoice.find({
+      branch: branch,
+      dateTime: {
+        $gte: startOfToday,
+        $lte: endOfToday,
+      },
+      orderStatus: { $in: ["pending", "cooking"] }
+    }).sort({ dateTime: 'asc' }); // Sort by oldest first
+
+    res.status(200).json(kitchenOrders);
+  } catch (err) {
+    console.error("Error fetching kitchen orders:", err);
+    res.status(500).json({ error: "Failed to fetch kitchen orders: " + err.message });
+  }
+}
 export async function getSalesByDateRange(req, res) {
   const { branch } = req.params;
   const { category, product, startDate, endDate } = req.query;
@@ -623,22 +715,22 @@ export async function getdatesByBranch(req, res) {
 
 
 export async function getPendingByBranch(req, res) {
-  const { branch, status } = req.params; 
+  // We only need the branch from the request parameters.
+  const { branch } = req.params;
 
   try {
-   
-    const invoices = await Invoice.find({ branch });
+    // Define the start and end of the current day.
+    const startOfToday = moment().startOf('day').toDate();
+    const endOfToday = moment().endOf('day').toDate();
 
-  
-    const todaysDate = moment().format('YYYY-MM-DD');
-    const todaysInvoices = invoices.filter(invoice =>
-      moment(invoice.dateTime).format('YYYY-MM-DD') === todaysDate
-    );
+    // Find all invoices that match the criteria in a single database query.
+    const invoices = await Invoice.find({
+      branch: branch,                           // Filter by the specified branch
+      orderStatus: { $ne: 'completed' },        // Exclude invoices where status is 'completed'
+      dateTime: { $gte: startOfToday, $lte: endOfToday } // Filter for invoices created today
+    });
 
- 
-    const filteredInvoices = todaysInvoices.filter(invoice => invoice.orderStatus === status);
-
-    res.status(200).json(filteredInvoices);
+    res.status(200).json(invoices);
   } catch (err) {
     res.status(500).send({ error: err.message });
   }

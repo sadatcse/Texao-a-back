@@ -21,6 +21,9 @@ import transactionLogger from "../middleware/transactionLogger.js";
 import { getSuperAdminDashboard } from "../controllers/dashboardController.js"; 
 import { getAllBranches } from "../controllers/branchController.js";
 import TableReservationRoutes from "../app/modules/TableReservation/TableReservation.routes.js";
+import TableCombine from "../app/modules/TableCombine/tableStatus.js";
+
+
 const routes = Router();
 
 routes.use(transactionLogger);
@@ -43,4 +46,5 @@ routes.use("/transaction-logs", TransactionLogRoutes);
 routes.get("/superadmin/dashboard", getSuperAdminDashboard);
 routes.get("/branch", getAllBranches);
 routes.use("/reservation", TableReservationRoutes);
+routes.use("/tablecombine", TableCombine);
 export default routes;

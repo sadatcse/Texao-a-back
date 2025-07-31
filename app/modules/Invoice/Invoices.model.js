@@ -19,6 +19,11 @@ const ProductSchema = Schema({
   qty: { type: Number, required: true },
   rate: { type: Number, required: true },
   subtotal: { type: Number, required: true },
+  cookStatus: {
+    type: String,
+    enum: ['PENDING', 'COOKING', 'SERVED'],
+    default: 'PENDING',
+  },
 });
 
 // Invoice schema
@@ -126,20 +131,16 @@ const InvoiceSchema = Schema(
   { timestamps: true }
 );
 
-// Middleware to calculate totals before saving
+
 InvoiceSchema.pre('save', function(next) {
-  // Calculate total quantity and amount from the products array
   this.totalQty = this.products.reduce((acc, product) => acc + (product.qty || 0), 0);
-  this.totalAmount = this.products.reduce((acc, product) => acc + (product.subtotal || 0), 0);
-
-  // Calculate the final total sale
+  const subtotal = this.products.reduce((acc, product) => acc + (product.subtotal || 0), 0);
+  this.totalSale = subtotal;
   const discountAmount = this.discount || 0;
-  const vatAmount = this.vat || 0; // Assuming VAT is a fixed amount, not percentage
-  this.totalSale = this.totalAmount - discountAmount + vatAmount;
-
+  const vatAmount = this.vat || 0;
+  this.totalAmount = subtotal + vatAmount - discountAmount;
   next();
 });
-
 
 const Invoice = model("Invoice", InvoiceSchema);
 
