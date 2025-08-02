@@ -1,5 +1,6 @@
 import { Router } from "express";
 
+// Existing Imports
 import AddonsRoutes from "../app/modules/Addons/Addonss.routes.js";
 import CategoryRoutes from "../app/modules/Catagorie/Catagories.routes.js";
 import CompanyRoutes from "../app/modules/Company/Companys.routes.js";
@@ -11,22 +12,32 @@ import ProductRoutes from "../app/modules/Product/Product.routes.js";
 import userRoutes from "../app/modules/User/Users.routes.js";
 import VATTypeRoutes from "../app/modules/Vattype/Vattypes.routes.js";
 import UserlogRoutes from "../app/modules/UserLog/UserLog.routes.js";
-import { getImageUrl } from "../config/space.js";
 import TableRoutes from "../app/modules/Table/Tables.routes.js";
 import CustomerRoutes from "../app/modules/Customer/Customers.routes.js";
-import { sendTestEmail } from "../controllers/emailController.js";
-
 import TransactionLogRoutes from "../app/modules/TransactionLog/TransactionLog.routes.js";
-import transactionLogger from "../middleware/transactionLogger.js";
-import { getSuperAdminDashboard } from "../controllers/dashboardController.js"; 
-import { getAllBranches } from "../controllers/branchController.js";
 import TableReservationRoutes from "../app/modules/TableReservation/TableReservation.routes.js";
 import TableCombine from "../app/modules/TableCombine/tableStatus.js";
 
+import ReportRoutes from "../app/modules/Report/Report.routes.js";
+import ExpenseRoutes from "../app/modules/Expense/Expense.routes.js";
+import VendorRoutes from "../app/modules/Vendor/Vendor.routes.js";
+import IngredientCategoryRoutes from "../app/modules/IngredientCategory/IngredientCategory.routes.js";
+import IngredientRoutes from "../app/modules/Ingredient/Ingredient.routes.js";
+import StockRoutes from "../app/modules/Stock/Stock.routes.js";
+import PurchaseRoutes from "../app/modules/Purchase/Purchase.routes.js";
+// Other Imports
+import { getImageUrl } from "../config/space.js";
+import { sendTestEmail } from "../controllers/emailController.js";
+import transactionLogger from "../middleware/transactionLogger.js";
+import { getSuperAdminDashboard } from "../controllers/dashboardController.js";
+import { getAllBranches } from "../controllers/branchController.js";
 
 const routes = Router();
 
+// Middleware
 routes.use(transactionLogger);
+
+// Existing Routes
 routes.use("/addons", AddonsRoutes);
 routes.use("/category", CategoryRoutes);
 routes.use("/company", CompanyRoutes);
@@ -40,11 +51,23 @@ routes.use("/vattype", VATTypeRoutes);
 routes.use("/userlog", UserlogRoutes);
 routes.use("/table", TableRoutes);
 routes.use("/customer", CustomerRoutes);
-routes.post("/send-email", sendTestEmail);
-routes.post("/get-image-url", getImageUrl);
 routes.use("/transaction-logs", TransactionLogRoutes);
-routes.get("/superadmin/dashboard", getSuperAdminDashboard);
-routes.get("/branch", getAllBranches);
 routes.use("/reservation", TableReservationRoutes);
 routes.use("/tablecombine", TableCombine);
+
+// New Routes
+routes.use("/expense", ExpenseRoutes);
+routes.use("/vendor", VendorRoutes);
+routes.use("/ingredient-category", IngredientCategoryRoutes);
+routes.use("/ingredient", IngredientRoutes);
+routes.use("/stock", StockRoutes);
+routes.use("/purchase", PurchaseRoutes);
+routes.use("/reports", ReportRoutes);
+
+// Other Routes
+routes.post("/send-email", sendTestEmail);
+routes.post("/get-image-url", getImageUrl);
+routes.get("/superadmin/dashboard", getSuperAdminDashboard);
+routes.get("/branch", getAllBranches);
+
 export default routes;
