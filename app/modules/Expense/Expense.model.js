@@ -55,6 +55,12 @@ const ExpenseSchema = Schema(
       type: String,
       required: [true, "Please provide a branch"],
     },
+ 
+    purchaseId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Purchase', 
+      index: true     
+    }
   },
   { timestamps: true }
 );

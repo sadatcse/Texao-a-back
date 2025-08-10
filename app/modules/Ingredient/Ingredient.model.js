@@ -9,7 +9,7 @@ const IngredientSchema = Schema(
     },
     category: {
       type: Schema.Types.ObjectId,
-      ref: "IngredientCategory", // This links to the IngredientCategory model
+      ref: "IngredientCategory",
       required: [true, "Please provide a category"],
     },
     unit: {
@@ -21,6 +21,13 @@ const IngredientSchema = Schema(
       required: [true, "Please provide a SKU"],
       unique: true,
     },
+    // --- NEW FIELD ---
+    stockAlert: {
+      type: Number,
+      default: 0, // Default to 0, meaning no alert
+      min: [0, "Stock alert cannot be negative"],
+    },
+    // --- END NEW FIELD ---
     branch: {
       type: String,
       required: [true, "Please provide a branch"],
@@ -34,5 +41,4 @@ const IngredientSchema = Schema(
 );
 
 const Ingredient = model("Ingredient", IngredientSchema);
-
 export default Ingredient;

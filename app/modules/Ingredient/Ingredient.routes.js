@@ -6,6 +6,7 @@ import {
   getIngredientById,
   removeIngredient,
   updateIngredient,
+  updateStockAlert,
   getActiveIngredientsByBranch,
 } from "./Ingredient.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js";
@@ -20,6 +21,7 @@ IngredientRoutes.get(
   getIngredientByBranch
 );
 IngredientRoutes.get("/get-id/:id", authenticateToken, getIngredientById);
+IngredientRoutes.put("/update-alert/:id", authenticateToken, updateStockAlert);
 IngredientRoutes.post("/post", authenticateToken, createIngredient);
 IngredientRoutes.delete("/delete/:id", authenticateToken, removeIngredient);
 IngredientRoutes.put("/update/:id", authenticateToken, updateIngredient);

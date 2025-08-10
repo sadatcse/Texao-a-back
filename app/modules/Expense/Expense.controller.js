@@ -9,13 +9,54 @@ export async function getAllExpenses(req, res) {
     res.status(500).send({ error: err.message });
   }
 }
-
-// Get expenses by branch
 export async function getExpenseByBranch(req, res) {
-  const branch = req.params.branch;
   try {
-    const result = await Expense.find({ branch });
-    res.status(200).json(result);
+    const { branch } = req.params;
+    const { search, date: dateFilter, page = 1, limit = 10 } = req.query;
+
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    // Build the query object based on filters
+    const query = { branch };
+    if (search) {
+      // Allow searching by title or category
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } }
+      ];
+    }
+    if (dateFilter) {
+      const startDate = new Date(dateFilter);
+      startDate.setUTCHours(0, 0, 0, 0);
+      const endDate = new Date(dateFilter);
+      endDate.setUTCHours(23, 59, 59, 999);
+      query.date = { $gte: startDate, $lte: endDate };
+    }
+
+    // Execute two queries in parallel: one for the data, one for the total count
+    const [results, totalDocuments] = await Promise.all([
+      Expense.find(query)
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limitNumber),
+      Expense.countDocuments(query)
+    ]);
+    
+    const totalPages = Math.ceil(totalDocuments / limitNumber);
+
+    // Return a structured response
+    res.status(200).json({
+      data: results,
+      pagination: {
+        currentPage: pageNumber,
+        totalPages,
+        totalDocuments,
+        limit: limitNumber
+      }
+    });
+
   } catch (err) {
     res.status(500).send({ error: err.message });
   }

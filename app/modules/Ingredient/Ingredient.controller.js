@@ -101,3 +101,28 @@ export async function updateIngredient(req, res) {
     res.status(500).send({ error: err.message });
   }
 }
+
+export async function updateStockAlert(req, res) {
+  const { id } = req.params;
+  const { stockAlert } = req.body;
+
+  if (stockAlert == null || stockAlert < 0) {
+    return res.status(400).send({ error: "A valid stock alert value is required." });
+  }
+
+  try {
+    const result = await Ingredient.findByIdAndUpdate(
+      id,
+      { $set: { stockAlert: stockAlert } },
+      { new: true, runValidators: true }
+    );
+
+    if (result) {
+      res.status(200).json(result);
+    } else {
+      res.status(404).json({ message: "Ingredient not found" });
+    }
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
+}
