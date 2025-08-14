@@ -13,6 +13,7 @@ import {
   getInvoicesByDateRange,
   getTrendingProducts,
   getdatesByBranch,
+  finalizeInvoice,
   getMonthlyOrderTimings,
   getWeeklySalesByMonth,
   getFavoriteProductsByDay,
@@ -43,7 +44,7 @@ InvoiceRoutes.get("/:branch/status/:status", getPendingByBranch);
 // Get invoice by ID
 InvoiceRoutes.get("/get-id/:id", getInvoiceById);
 
-
+InvoiceRoutes.put("/finalize/:id", finalizeInvoice);
 // Create a new invoice
 InvoiceRoutes.post("/post", createInvoice);
 

@@ -12,30 +12,41 @@ export async function getAllExpenses(req, res) {
 export async function getExpenseByBranch(req, res) {
   try {
     const { branch } = req.params;
-    const { search, date: dateFilter, page = 1, limit = 10 } = req.query;
+    // --- MODIFICATION START ---
+    // Destructure fromDate and toDate from the query instead of 'date'
+    const { search, fromDate, toDate, page = 1, limit = 10 } = req.query;
 
     const pageNumber = parseInt(page);
     const limitNumber = parseInt(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Build the query object based on filters
     const query = { branch };
+
     if (search) {
-      // Allow searching by title or category
       query.$or = [
         { title: { $regex: search, $options: "i" } },
         { category: { $regex: search, $options: "i" } }
       ];
     }
-    if (dateFilter) {
-      const startDate = new Date(dateFilter);
-      startDate.setUTCHours(0, 0, 0, 0);
-      const endDate = new Date(dateFilter);
-      endDate.setUTCHours(23, 59, 59, 999);
-      query.date = { $gte: startDate, $lte: endDate };
+    
+    // Build the date range query
+    if (fromDate || toDate) {
+      query.date = {};
+      if (fromDate) {
+        // Set the start of the day for the 'from' date
+        const startDate = new Date(fromDate);
+        startDate.setUTCHours(0, 0, 0, 0);
+        query.date.$gte = startDate;
+      }
+      if (toDate) {
+        // Set the end of the day for the 'to' date to include the entire day
+        const endDate = new Date(toDate);
+        endDate.setUTCHours(23, 59, 59, 999);
+        query.date.$lte = endDate;
+      }
     }
+    // --- MODIFICATION END ---
 
-    // Execute two queries in parallel: one for the data, one for the total count
     const [results, totalDocuments] = await Promise.all([
       Expense.find(query)
         .sort({ date: -1 })
@@ -46,7 +57,6 @@ export async function getExpenseByBranch(req, res) {
     
     const totalPages = Math.ceil(totalDocuments / limitNumber);
 
-    // Return a structured response
     res.status(200).json({
       data: results,
       pagination: {

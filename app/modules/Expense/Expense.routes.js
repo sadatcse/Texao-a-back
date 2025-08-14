@@ -13,7 +13,7 @@ const ExpenseRoutes = Router();
 
 // Protect all routes with authentication middleware
 ExpenseRoutes.get("/", authenticateToken, getAllExpenses);
-ExpenseRoutes.get("/:branch/get-all", authenticateToken, getExpenseByBranch);
+ExpenseRoutes.get("/:branch/get-all", getExpenseByBranch);
 ExpenseRoutes.get("/get-id/:id", authenticateToken, getExpenseById);
 ExpenseRoutes.post("/post", authenticateToken, createExpense);
 ExpenseRoutes.delete("/delete/:id", authenticateToken, removeExpense);

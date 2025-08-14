@@ -75,7 +75,35 @@ export async function getFilteredInvoices(req, res) {
   }
 }
 
+export const finalizeInvoice = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updateData = req.body;
 
+        // The main difference: explicitly set the order status
+        updateData.orderStatus = 'completed';
+
+        const finalizedInvoice = await Invoice.findByIdAndUpdate(id, updateData, {
+            new: true, // Return the modified document
+            runValidators: true, // Ensure schema validations are run
+        });
+
+        if (!finalizedInvoice) {
+            return res.status(404).json({ message: "Invoice not found" });
+        }
+
+        res.status(200).json({
+            message: "Order finalized successfully!",
+            invoice: finalizedInvoice
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Error finalizing invoice",
+            error: error.message
+        });
+    }
+};
 
 export async function getKitchenOrdersByBranch(req, res) {
   const { branch } = req.params;
@@ -674,39 +702,79 @@ export async function getdatesByBranch(req, res) {
   }
 
   try {
-    // Fetch all invoices for the branch
-    const branchOrders = await Invoice.find({ branch });
+    // More efficient query: Filter by branch and date range in the database
+    const startDate = moment(date).startOf('day').toDate();
+    const endDate = moment(date).endOf('day').toDate();
 
-    // Filter invoices by the given date
-    const todaysDate = date; // Assuming `date` is in 'YYYY-MM-DD' format
-    const todaysInvoices = branchOrders.filter(invoice =>
-      moment(invoice.dateTime).format('YYYY-MM-DD') === todaysDate
-    );
+    const todaysInvoices = await Invoice.find({
+      branch,
+      dateTime: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+    });
 
-    // If no orders found, return totals as 0
+    // If no orders found, return all totals as 0
     if (todaysInvoices.length === 0) {
       return res.status(200).json({
         orders: [],
         totalOrders: 0,
         totalQty: 0,
         totalAmount: 0,
+        totalVat: 0,
+        totalDiscount: 0,
+        cashPayments: 0,
+        cardPayments: 0,
+        mobilePayments: 0,
       });
     }
 
-    // Calculate total quantities and amounts
-    const totalQty = todaysInvoices.reduce((sum, order) => {
-      return sum + order.products.reduce((qtySum, product) => qtySum + product.qty, 0);
-    }, 0);
+    // --- NEW: Calculate all totals in a single pass ---
+    const totals = todaysInvoices.reduce((acc, order) => {
+        acc.totalQty += order.totalQty;
+        acc.totalAmount += order.totalAmount;
+        acc.totalVat += order.vat || 0;
+        acc.totalDiscount += order.discount || 0;
 
-    const totalAmount = todaysInvoices.reduce((sum, order) => sum + order.totalAmount, 0);
+        // Check payment method and add to the corresponding total
+        switch (order.paymentMethod) {
+            case 'Cash':
+                acc.cashPayments += order.totalAmount;
+                break;
+            case 'Card':
+                acc.cardPayments += order.totalAmount;
+                break;
+            case 'Mobile':
+                acc.mobilePayments += order.totalAmount;
+                break;
+            default:
+                break;
+        }
+        return acc;
+    }, {
+        totalQty: 0,
+        totalAmount: 0,
+        totalVat: 0,
+        totalDiscount: 0,
+        cashPayments: 0,
+        cardPayments: 0,
+        mobilePayments: 0,
+    });
 
-    // Send the response
+
+    // Send the response with all calculated data
     res.status(200).json({
       orders: todaysInvoices,
       totalOrders: todaysInvoices.length,
-      totalQty,
-      totalAmount,
+      totalQty: totals.totalQty,
+      totalAmount: totals.totalAmount,
+      totalVat: totals.totalVat,
+      totalDiscount: totals.totalDiscount,
+      cashPayments: totals.cashPayments,
+      cardPayments: totals.cardPayments,
+      mobilePayments: totals.mobilePayments,
     });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "An error occurred while processing your request.", error: err.message });
