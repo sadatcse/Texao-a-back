@@ -45,7 +45,7 @@ InvoiceRoutes.get("/:branch/status/:status", getPendingByBranch);
 InvoiceRoutes.get("/get-id/:id", getInvoiceById);
 
 InvoiceRoutes.put("/finalize/:id", finalizeInvoice);
-// Create a new invoice
+InvoiceRoutes.put("/update/:id", updateInvoice);
 InvoiceRoutes.post("/post", createInvoice);
 
 InvoiceRoutes.get("/:branch/filter", getFilteredInvoices);
@@ -53,7 +53,7 @@ InvoiceRoutes.delete("/delete/:id", removeInvoice);
 
 InvoiceRoutes.get("/:branch/weekly-sales", getWeeklySalesByMonth);
 
-InvoiceRoutes.put("/update/:id", updateInvoice);
+
 InvoiceRoutes.get("/:branch/monthly-item-sales", getSalesGroupedByDayName);
 
 InvoiceRoutes.get("/:branch/date-range", getInvoicesByDateRange);

@@ -963,7 +963,7 @@ export async function removeInvoice(req, res) {
   try {
     const result = await Invoice.findByIdAndDelete(id);
     if (result) {
-      res.status(200).json({ message: "Invoice deleted successfully" });
+      res.status(200).json({ message: "Food Order deleted successfully" });
     } else {
       res.status(404).json({ message: "Invoice not found" });
     }
