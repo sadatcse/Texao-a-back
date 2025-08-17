@@ -13,19 +13,23 @@ const ProductSchema = Schema(
     },
     flavour: {
       type: Boolean,
-      default: false, 
+      default: false,
     },
     cFlavor: {
       type: Boolean,
-      default: false, 
+      default: false,
     },
     addOns: {
       type: Boolean,
-      default: false, 
+      default: false,
     },
     vat: {
       type: Number,
-      default: 0, 
+      default: 0, // percentage
+    },
+    sd: {
+      type: Number,
+      default: 0, // percentage (Supplementary Duty)
     },
     price: {
       type: Number,
