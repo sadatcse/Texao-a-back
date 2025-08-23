@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 const { Schema, model } = mongoose;
 
-// Function to generate invoice serial number
+// Function to generate invoice serial number (unchanged)
 const generateInvoiceSerial = () => {
   const now = new Date();
   const year = now.getFullYear().toString().slice(-2);
@@ -15,20 +15,29 @@ const generateInvoiceSerial = () => {
 
 // Product schema
 const ProductSchema = Schema({
-    productName: { type: String, required: true },
-    qty: { type: Number, required: true },
-    rate: { type: Number, required: true },
-    subtotal: { type: Number, required: true },
-    cookStatus: {
-        type: String,
-        enum: ['PENDING', 'COOKING', 'SERVED'],
-        default: 'PENDING',
-    },
-    // Add this new field
-    isComplimentary: {
-        type: Boolean,
-        default: false,
-    },
+  productName: { type: String, required: true },
+  qty: { type: Number, required: true },
+  rate: { type: Number, required: true },
+  subtotal: { type: Number, required: true },
+  // **NEW**: VAT for the individual product
+  vat: {
+    type: Number,
+    default: 0,
+  },
+  // **NEW**: Supplementary Duty (SD) for the individual product
+  sd: {
+    type: Number,
+    default: 0,
+  },
+  cookStatus: {
+    type: String,
+    enum: ['PENDING', 'COOKING', 'SERVED'],
+    default: 'PENDING',
+  },
+  isComplimentary: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // Invoice schema
@@ -56,7 +65,6 @@ const InvoiceSchema = Schema(
     products: {
       type: [ProductSchema],
       required: true,
-      // Ensure products array is not empty
       validate: [v => Array.isArray(v) && v.length > 0, 'Please add at least one product']
     },
     totalQty: {
@@ -73,9 +81,15 @@ const InvoiceSchema = Schema(
       required: true,
       default: 0
     },
+    // This now represents the sum of VAT from all products
     vat: {
       type: Number,
       default: 0
+    },
+    // **NEW**: Total SD, summed from all products
+    sd: {
+        type: Number,
+        default: 0
     },
     orderType: {
       type: String,
@@ -100,7 +114,6 @@ const InvoiceSchema = Schema(
       enum: ["pending", "completed", "cancelled", "cooking", "served"],
       default: "pending",
     },
-    // Conditionally required field for 'dine-in'
     tableName: {
       type: String,
       required: [
@@ -110,7 +123,6 @@ const InvoiceSchema = Schema(
         "Table name is required for dine-in orders.",
       ],
     },
-    // New conditionally required field for 'delivery'
     deliveryProvider: {
         type: String,
         enum: ['Pathao', 'Foodi', 'Foodpanda', 'DeliveryBoy'],
@@ -127,34 +139,47 @@ const InvoiceSchema = Schema(
     customerMobile: {
       type: String,
     },
-      paymentMethod: {
-            type: String,
-            // Updated enum to include specific card and mobile payment types
-            enum: ['Cash', 'Visa Card', 'Master Card', 'Amex Card', 'Bkash', 'Nagad', 'Rocket'],
-            default: 'Cash'
-        },
+paymentMethod: {
+    type: String,
+    enum: [
+        'Cash',
+        'Visa Card',
+        'Master Card',
+        'Amex Card',
+        'Bkash',
+        'Nagad',
+        'Rocket',
+        'Bank'
+    ],
+    default: 'Cash'
+}
   },
   { timestamps: true }
 );
 
-
+// **UPDATED**: pre-save hook to calculate totals
 InvoiceSchema.pre('save', function(next) {
-    // Calculate total quantity as before
+    // Calculate total quantity (includes complimentary items)
     this.totalQty = this.products.reduce((acc, product) => acc + (product.qty || 0), 0);
 
-    // Filter out complimentary products for sale and amount calculation
+    // Filter out complimentary products for financial calculations
     const nonComplimentaryProducts = this.products.filter(product => !product.isComplimentary);
 
-    // Calculate subtotal for non-complimentary items only
+    // Calculate totals from non-complimentary items only
     const subtotal = nonComplimentaryProducts.reduce((acc, product) => acc + (product.subtotal || 0), 0);
+    const totalVat = nonComplimentaryProducts.reduce((acc, product) => acc + (product.vat || 0), 0);
+    const totalSd = nonComplimentaryProducts.reduce((acc, product) => acc + (product.sd || 0), 0);
 
-    this.totalSale = subtotal;
+    // Assign calculated aggregate taxes to the invoice document
+    this.vat = totalVat;
+    this.sd = totalSd;
 
+    // totalSale is the amount before discount but including all taxes
+    this.totalSale = subtotal + this.vat + this.sd;
+
+    // totalAmount is the final payable amount after discount
     const discountAmount = this.discount || 0;
-    const vatAmount = this.vat || 0;
-
-    // The total amount is calculated based on the subtotal of non-complimentary items
-    this.totalAmount = subtotal + vatAmount - discountAmount;
+    this.totalAmount = this.totalSale - discountAmount;
     
     next();
 });
