@@ -13,6 +13,7 @@ import {
   getInvoicesByDateRange,
   getTrendingProducts,
   getdatesByBranch,
+  getFilteredSearchInvoices,
   finalizeInvoice,
   getMonthlyOrderTimings,
   getWeeklySalesByMonth,
@@ -23,9 +24,38 @@ import {
   getSalesByDateRange,
   gettop5InvoicesByBranch,
 } from "./Invoices.controller.js";
-import { authenticateToken } from "../../../middleware/authMiddleware.js"; 
+import { authenticateToken } from "../../../middleware/authMiddleware.js";
+
 const InvoiceRoutes = Router();
 // InvoiceRoutes.use(authenticateToken);
+
+// Function to handle the update and emit a Socket.IO event
+const handleUpdateAndEmit = async (req, res, next) => {
+  try {
+    const updatedInvoice = await updateInvoice(req, res, next);
+    if (updatedInvoice && updatedInvoice.branch) {
+      // Get the socket.io instance from the request
+      const io = req.io;
+      // Emit an event to all clients in the specific branch room
+      io.to(updatedInvoice.branch).emit('kitchen-update');
+    }
+  } catch (error) {
+    next(error); // Pass the error to the Express error handler
+  }
+};
+
+const handleFinalizeAndEmit = async (req, res, next) => {
+  try {
+    const finalizedInvoice = await finalizeInvoice(req, res, next);
+    if (finalizedInvoice && finalizedInvoice.branch) {
+      const io = req.io;
+      io.to(finalizedInvoice.branch).emit('kitchen-update');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 // Get all invoices
 InvoiceRoutes.get("/", getAllInvoices);
@@ -43,16 +73,16 @@ InvoiceRoutes.get("/:branch/date/:date", getdatesByBranch);
 InvoiceRoutes.get("/:branch/status/:status", getPendingByBranch);
 // Get invoice by ID
 InvoiceRoutes.get("/get-id/:id", getInvoiceById);
+InvoiceRoutes.get("/:branch/filtered-search", getFilteredSearchInvoices);
 
-InvoiceRoutes.put("/finalize/:id", finalizeInvoice);
-InvoiceRoutes.put("/update/:id", updateInvoice);
+InvoiceRoutes.put("/finalize/:id", handleFinalizeAndEmit);
+InvoiceRoutes.put("/update/:id", handleUpdateAndEmit);
 InvoiceRoutes.post("/post", createInvoice);
 
 InvoiceRoutes.get("/:branch/filter", getFilteredInvoices);
 InvoiceRoutes.delete("/delete/:id", removeInvoice);
 
 InvoiceRoutes.get("/:branch/weekly-sales", getWeeklySalesByMonth);
-
 
 InvoiceRoutes.get("/:branch/monthly-item-sales", getSalesGroupedByDayName);
 

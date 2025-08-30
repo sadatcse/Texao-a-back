@@ -1,15 +1,16 @@
 import { Router } from "express";
 import {
-  createProduct,
-  getAllProducts,
-  getProductsByCategory,
-  getProductById,
-  removeProduct,
-  getProductsByCategoryAndBranch,
-  updateProduct,
-  getProductsByBranch,
+    createProduct,
+    getAllProducts,
+    getProductsByCategory,
+    getProductById,
+    removeProduct,
+    getProductsByCategoryAndBranch,
+    updateProduct,
+    getProductsByBranch,
+    searchProductsByBranch // Import the new controller function
 } from "./Product.controller.js";
-import { authenticateToken } from "../../../middleware/authMiddleware.js"; 
+import { authenticateToken } from "../../../middleware/authMiddleware.js";
 
 const ProductRoutes = Router();
 
@@ -22,5 +23,8 @@ ProductRoutes.get("/get-id/:id", authenticateToken, getProductById);
 ProductRoutes.post("/post", authenticateToken, createProduct);
 ProductRoutes.delete("/delete/:id", authenticateToken, removeProduct);
 ProductRoutes.put("/update/:id", authenticateToken, updateProduct);
+
+// New route for searching products by branch
+ProductRoutes.get("/search", authenticateToken, searchProductsByBranch);
 
 export default ProductRoutes;

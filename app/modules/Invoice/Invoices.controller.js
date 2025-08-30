@@ -76,33 +76,34 @@ export async function getFilteredInvoices(req, res) {
 }
 
 export const finalizeInvoice = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const updateData = req.body;
+    try {
+        const { id } = req.params;
+        const updateData = req.body;
+        // The main difference: explicitly set the order status
+        updateData.orderStatus = 'completed';
+        const finalizedInvoice = await Invoice.findByIdAndUpdate(id, updateData, {
+            new: true, // Return the modified document
+            runValidators: true, // Ensure schema validations are run
+        });
+        if (!finalizedInvoice) {
+            return res.status(404).json({ message: "Invoice not found" });
+        }
 
-        // The main difference: explicitly set the order status
-        updateData.orderStatus = 'completed';
-
-        const finalizedInvoice = await Invoice.findByIdAndUpdate(id, updateData, {
-            new: true, // Return the modified document
-            runValidators: true, // Ensure schema validations are run
-        });
-
-        if (!finalizedInvoice) {
-            return res.status(404).json({ message: "Invoice not found" });
-        }
-
-        res.status(200).json({
-            message: "Order finalized successfully!",
-            invoice: finalizedInvoice
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            message: "Error finalizing invoice",
-            error: error.message
-        });
-    }
+        // Check if the update was successful and the branch exists
+        if (finalizedInvoice && finalizedInvoice.branch) {
+            // Emit an event to all clients in the specific branch room
+            req.io.to(finalizedInvoice.branch).emit('kitchen-update');
+        }
+        res.status(200).json({
+            message: "Order finalized successfully!",
+            invoice: finalizedInvoice
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Error finalizing invoice",
+            error: error.message
+        });
+    }
 };
 
 export async function getKitchenOrdersByBranch(req, res) {
@@ -687,6 +688,489 @@ export async function gettop5InvoicesByBranch(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
+export async function getFilteredSearchInvoices(req, res) {
+  const { branch } = req.params;
+  const {
+    startDate,
+    endDate,
+    orderType,
+    orderStatus,
+    tableName,
+    deliveryProvider,
+    paymentMethod,
+    loginUserName,
+    searchQuery,
+    page = 1, // default page 1
+    limit = 10, // default 10 per page
+  } = req.query;
+
+  try {
+    const query = { branch };
+
+    // Date range filter
+    if (startDate && endDate) {
+      const startOfDay = moment(startDate).startOf("day").toDate();
+      const endOfDay = moment(endDate).endOf("day").toDate();
+      query.dateTime = { $gte: startOfDay, $lte: endOfDay };
+    } else {
+      const today = moment().startOf("day").toDate();
+      const tomorrow = moment().endOf("day").toDate();
+      query.dateTime = { $gte: today, $lte: tomorrow };
+    }
+
+    // Single-select filters
+    if (orderType && orderType !== "all") query.orderType = orderType;
+    if (orderStatus && orderStatus !== "all") query.orderStatus = orderStatus;
+    if (tableName && tableName !== "all") query.tableName = tableName;
+    if (deliveryProvider && deliveryProvider !== "all") query.deliveryProvider = deliveryProvider;
+    if (paymentMethod && paymentMethod !== "all") query.paymentMethod = paymentMethod;
+    if (loginUserName && loginUserName !== "all") query.loginUserName = loginUserName;
+
+    // Search query filter
+    if (searchQuery) {
+      const isNumeric = !isNaN(parseFloat(searchQuery));
+      const searchRegex = new RegExp(searchQuery, "i");
+      const orConditions = [
+        { invoiceSerial: searchRegex },
+        { customerName: searchRegex },
+        { loginUserName: searchRegex },
+        { tableName: searchRegex },
+        { totalAmount: isNumeric ? parseFloat(searchQuery) : undefined }
+      ].filter((condition) => {
+        if ("totalAmount" in condition) {
+          return condition.totalAmount !== undefined;
+        }
+        return true;
+      });
+      query.$or = orConditions;
+    }
+
+    // Convert page & limit
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+
+    // --- Fetch all matching invoices for summary ---
+    const allInvoices = await Invoice.find(query);
+
+    // If no invoices, return zeroed summary
+    if (allInvoices.length === 0) {
+      return res.status(200).json({
+        invoices: [],
+        pagination: { total: 0, page: pageNumber, limit: limitNumber, totalPages: 0 },
+        summary: {
+          totalSales: {
+            totalAmount: 0,
+            averageOrderValue: 0,
+            totalQty: 0,
+          },
+          taxesAndDiscounts: {
+            totalVat: 0,
+            totalSd: 0,
+            totalDiscount: 0,
+            totalDiscountedInvoices: 0,
+            totalTableDiscount: 0,
+            totalTableDiscountedInvoices: 0,
+          },
+          complimentaryItems: {
+            totalComplimentaryItems: 0,
+            totalComplimentaryAmount: 0,
+          },
+          salesByOrderType: {
+            dineIn: {
+              totalAmount: 0,
+              invoiceCount: 0,
+              totalVat: 0,
+              totalSd: 0,
+            },
+            takeaway: {
+              totalAmount: 0,
+              invoiceCount: 0,
+              totalVat: 0,
+              totalSd: 0,
+            },
+            delivery: {
+              totalAmount: 0,
+              invoiceCount: 0,
+              totalVat: 0,
+              totalSd: 0,
+              providers: {
+                pathao: {
+                  totalAmount: 0,
+                  invoiceCount: 0,
+                  totalVat: 0,
+                  totalSd: 0,
+                },
+                foodi: {
+                  totalAmount: 0,
+                  invoiceCount: 0,
+                  totalVat: 0,
+                  totalSd: 0,
+                },
+                foodpanda: {
+                  totalAmount: 0,
+                  invoiceCount: 0,
+                  totalVat: 0,
+                  totalSd: 0,
+                },
+                deliveryBoy: {
+                  totalAmount: 0,
+                  invoiceCount: 0,
+                  totalVat: 0,
+                  totalSd: 0,
+                },
+              },
+            },
+          },
+          salesByPaymentMethod: {
+            cash: {
+              totalAmount: 0,
+              invoiceCount: 0,
+            },
+            card: {
+              totalAmount: 0,
+              invoiceCount: 0,
+              visaCard: {
+                totalAmount: 0,
+                invoiceCount: 0,
+              },
+              masterCard: {
+                totalAmount: 0,
+                invoiceCount: 0,
+              },
+              amexCard: {
+                totalAmount: 0,
+                invoiceCount: 0,
+              },
+            },
+            mobile: {
+              totalAmount: 0,
+              invoiceCount: 0,
+              bkash: {
+                totalAmount: 0,
+                invoiceCount: 0,
+              },
+              nagad: {
+                totalAmount: 0,
+                invoiceCount: 0,
+              },
+              rocket: {
+                totalAmount: 0,
+                invoiceCount: 0,
+              },
+            },
+            bank: {
+              totalAmount: 0,
+              invoiceCount: 0,
+            },
+          },
+        },
+      });
+    }
+
+    // --- Pagination (only slice needed records) ---
+    const totalInvoices = allInvoices.length;
+    const invoices = await Invoice.find(query)
+      .sort({ dateTime: -1 })
+      .skip((pageNumber - 1) * limitNumber)
+      .limit(limitNumber);
+
+    // --- Summary Calculation ---
+    const analysis = allInvoices.reduce(
+      (acc, order) => {
+        acc.totalQty += order.totalQty;
+        acc.totalAmount += order.totalAmount;
+        acc.totalVat += order.vat || 0;
+        acc.totalSd += order.sd || 0;
+        
+        // Count and sum total discounts
+        if (order.discount > 0) {
+          acc.totalDiscount += order.discount;
+          acc.totalDiscountedInvoices += 1;
+        }
+
+        // Complimentary items
+        order.products?.forEach((product) => {
+          if (product.isComplimentary) {
+            acc.totalComplimentaryItems += product.qty;
+            acc.totalComplimentaryAmount += product.subtotal;
+          }
+        });
+
+        // Payment methods
+        switch (order.paymentMethod) {
+          case "Cash":
+            acc.cashPayments += order.totalAmount;
+            acc.paymentMethodCounts.cash += 1;
+            break;
+          case "Card":
+            acc.cardPayments += order.totalAmount;
+            acc.paymentMethodCounts.card += 1;
+            break;
+          case "Visa Card":
+            acc.cardPayments += order.totalAmount;
+            acc.paymentMethodCounts.card += 1;
+            acc.visaCardPayments += order.totalAmount;
+            acc.visaCardCounts += 1;
+            break;
+          case "Master Card":
+            acc.cardPayments += order.totalAmount;
+            acc.paymentMethodCounts.card += 1;
+            acc.masterCardPayments += order.totalAmount;
+            acc.masterCardCounts += 1;
+            break;
+          case "Amex Card":
+            acc.cardPayments += order.totalAmount;
+            acc.paymentMethodCounts.card += 1;
+            acc.amexCardPayments += order.totalAmount;
+            acc.amexCardCounts += 1;
+            break;
+          case "Mobile":
+            acc.mobilePayments += order.totalAmount;
+            acc.paymentMethodCounts.mobile += 1;
+            break;
+          case "Bkash":
+            acc.mobilePayments += order.totalAmount;
+            acc.paymentMethodCounts.mobile += 1;
+            acc.bkashPayments += order.totalAmount;
+            acc.bkashCounts += 1;
+            break;
+          case "Nagad":
+            acc.mobilePayments += order.totalAmount;
+            acc.paymentMethodCounts.mobile += 1;
+            acc.nagadPayments += order.totalAmount;
+            acc.nagadCounts += 1;
+            break;
+          case "Rocket":
+            acc.mobilePayments += order.totalAmount;
+            acc.paymentMethodCounts.mobile += 1;
+            acc.rocketPayments += order.totalAmount;
+            acc.rocketCounts += 1;
+            break;
+          case "Bank":
+            acc.bankPayments += order.totalAmount;
+            acc.paymentMethodCounts.bank += 1;
+            break;
+        }
+
+        // Order type and associated VAT/SD
+        switch (order.orderType) {
+          case "dine-in":
+            acc.orderTypeCounts.dineIn += 1;
+            acc.salesByOrderType.dineIn += order.totalAmount;
+            acc.vatByOrderType.dineIn += order.vat || 0;
+            acc.sdByOrderType.dineIn += order.sd || 0;
+            // Count and sum table discounts
+            if (order.discount > 0) {
+              acc.totalTableDiscount += order.discount;
+              acc.totalTableDiscountedInvoices += 1;
+            }
+            break;
+          case "takeaway":
+            acc.orderTypeCounts.takeaway += 1;
+            acc.salesByOrderType.takeaway += order.totalAmount;
+            acc.vatByOrderType.takeaway += order.vat || 0;
+            acc.sdByOrderType.takeaway += order.sd || 0;
+            break;
+          case "delivery":
+            acc.orderTypeCounts.delivery += 1;
+            acc.salesByOrderType.delivery += order.totalAmount;
+            acc.vatByOrderType.delivery += order.vat || 0;
+            acc.sdByOrderType.delivery += order.sd || 0;
+
+            switch (order.deliveryProvider) {
+              case "Pathao":
+                acc.deliveryProviderCounts.pathao += 1;
+                acc.salesByDeliveryProvider.pathao += order.totalAmount;
+                acc.vatByDeliveryProvider.pathao += order.vat || 0;
+                acc.sdByDeliveryProvider.pathao += order.sd || 0;
+                break;
+              case "Foodi":
+                acc.deliveryProviderCounts.foodi += 1;
+                acc.salesByDeliveryProvider.foodi += order.totalAmount;
+                acc.vatByDeliveryProvider.foodi += order.vat || 0;
+                acc.sdByDeliveryProvider.foodi += order.sd || 0;
+                break;
+              case "Foodpanda":
+                acc.deliveryProviderCounts.foodpanda += 1;
+                acc.salesByDeliveryProvider.foodpanda += order.totalAmount;
+                acc.vatByDeliveryProvider.foodpanda += order.vat || 0;
+                acc.sdByDeliveryProvider.foodpanda += order.sd || 0;
+                break;
+              case "DeliveryBoy":
+                acc.deliveryProviderCounts.deliveryBoy += 1;
+                acc.salesByDeliveryProvider.deliveryBoy += order.totalAmount;
+                acc.vatByDeliveryProvider.deliveryBoy += order.vat || 0;
+                acc.sdByDeliveryProvider.deliveryBoy += order.sd || 0;
+                break;
+            }
+            break;
+        }
+
+        return acc;
+      },
+      {
+        totalQty: 0,
+        totalAmount: 0,
+        totalVat: 0,
+        totalSd: 0,
+        totalDiscount: 0,
+        totalDiscountedInvoices: 0,
+        totalTableDiscount: 0,
+        totalTableDiscountedInvoices: 0,
+        cashPayments: 0,
+        cardPayments: 0,
+        mobilePayments: 0,
+        bankPayments: 0,
+        visaCardPayments: 0,
+        masterCardPayments: 0,
+        amexCardPayments: 0,
+        bkashPayments: 0,
+        nagadPayments: 0,
+        rocketPayments: 0,
+        orderTypeCounts: { dineIn: 0, takeaway: 0, delivery: 0 },
+        deliveryProviderCounts: { pathao: 0, foodi: 0, foodpanda: 0, deliveryBoy: 0 },
+        salesByOrderType: { dineIn: 0, takeaway: 0, delivery: 0 },
+        salesByDeliveryProvider: { pathao: 0, foodi: 0, foodpanda: 0, deliveryBoy: 0 },
+        paymentMethodCounts: { cash: 0, card: 0, mobile: 0, bank: 0 },
+        visaCardCounts: 0,
+        masterCardCounts: 0,
+        amexCardCounts: 0,
+        bkashCounts: 0,
+        nagadCounts: 0,
+        rocketCounts: 0,
+        totalComplimentaryItems: 0,
+        totalComplimentaryAmount: 0,
+        vatByOrderType: { dineIn: 0, takeaway: 0, delivery: 0 },
+        sdByOrderType: { dineIn: 0, takeaway: 0, delivery: 0 },
+        vatByDeliveryProvider: { pathao: 0, foodi: 0, foodpanda: 0, deliveryBoy: 0 },
+        sdByDeliveryProvider: { pathao: 0, foodi: 0, foodpanda: 0, deliveryBoy: 0 },
+      }
+    );
+
+    const averageOrderValue =
+      allInvoices.length > 0 ? analysis.totalAmount / allInvoices.length : 0;
+
+    res.status(200).json({
+      invoices,
+      pagination: {
+        total: totalInvoices,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(totalInvoices / limitNumber),
+      },
+      summary: {
+        totalSales: {
+          totalAmount: analysis.totalAmount,
+          averageOrderValue: averageOrderValue,
+          totalQty: analysis.totalQty,
+        },
+        taxesAndDiscounts: {
+          totalVat: analysis.totalVat,
+          totalSd: analysis.totalSd,
+          totalDiscount: analysis.totalDiscount,
+          totalDiscountedInvoices: analysis.totalDiscountedInvoices,
+          totalTableDiscount: analysis.totalTableDiscount,
+          totalTableDiscountedInvoices: analysis.totalTableDiscountedInvoices,
+        },
+        complimentaryItems: {
+          totalComplimentaryItems: analysis.totalComplimentaryItems,
+          totalComplimentaryAmount: analysis.totalComplimentaryAmount,
+        },
+        salesByOrderType: {
+          dineIn: {
+            totalAmount: analysis.salesByOrderType.dineIn,
+            invoiceCount: analysis.orderTypeCounts.dineIn,
+            totalVat: analysis.vatByOrderType.dineIn,
+            totalSd: analysis.sdByOrderType.dineIn,
+          },
+          takeaway: {
+            totalAmount: analysis.salesByOrderType.takeaway,
+            invoiceCount: analysis.orderTypeCounts.takeaway,
+            totalVat: analysis.vatByOrderType.takeaway,
+            totalSd: analysis.sdByOrderType.takeaway,
+          },
+          delivery: {
+            totalAmount: analysis.salesByOrderType.delivery,
+            invoiceCount: analysis.orderTypeCounts.delivery,
+            totalVat: analysis.vatByOrderType.delivery,
+            totalSd: analysis.sdByOrderType.delivery,
+            providers: {
+              pathao: {
+                totalAmount: analysis.salesByDeliveryProvider.pathao,
+                invoiceCount: analysis.deliveryProviderCounts.pathao,
+                totalVat: analysis.vatByDeliveryProvider.pathao,
+                totalSd: analysis.sdByDeliveryProvider.pathao,
+              },
+              foodi: {
+                totalAmount: analysis.salesByDeliveryProvider.foodi,
+                invoiceCount: analysis.deliveryProviderCounts.foodi,
+                totalVat: analysis.vatByDeliveryProvider.foodi,
+                totalSd: analysis.sdByDeliveryProvider.foodi,
+              },
+              foodpanda: {
+                totalAmount: analysis.salesByDeliveryProvider.foodpanda,
+                invoiceCount: analysis.deliveryProviderCounts.foodpanda,
+                totalVat: analysis.vatByDeliveryProvider.foodpanda,
+                totalSd: analysis.sdByDeliveryProvider.foodpanda,
+              },
+              deliveryBoy: {
+                totalAmount: analysis.salesByDeliveryProvider.deliveryBoy,
+                invoiceCount: analysis.deliveryProviderCounts.deliveryBoy,
+                totalVat: analysis.vatByDeliveryProvider.deliveryBoy,
+                totalSd: analysis.sdByDeliveryProvider.deliveryBoy,
+              },
+            },
+          },
+        },
+        salesByPaymentMethod: {
+          cash: {
+            totalAmount: analysis.cashPayments,
+            invoiceCount: analysis.paymentMethodCounts.cash,
+          },
+          card: {
+            totalAmount: analysis.cardPayments,
+            invoiceCount: analysis.paymentMethodCounts.card,
+            visaCard: {
+              totalAmount: analysis.visaCardPayments,
+              invoiceCount: analysis.visaCardCounts,
+            },
+            masterCard: {
+              totalAmount: analysis.masterCardPayments,
+              invoiceCount: analysis.masterCardCounts,
+            },
+            amexCard: {
+              totalAmount: analysis.amexCardPayments,
+              invoiceCount: analysis.amexCardCounts,
+            },
+          },
+          mobile: {
+            totalAmount: analysis.mobilePayments,
+            invoiceCount: analysis.paymentMethodCounts.mobile,
+            bkash: {
+              totalAmount: analysis.bkashPayments,
+              invoiceCount: analysis.bkashCounts,
+            },
+            nagad: {
+              totalAmount: analysis.nagadPayments,
+              invoiceCount: analysis.nagadCounts,
+            },
+            rocket: {
+              totalAmount: analysis.rocketPayments,
+              invoiceCount: analysis.rocketCounts,
+            },
+          },
+          bank: {
+            totalAmount: analysis.bankPayments,
+            invoiceCount: analysis.paymentMethodCounts.bank,
+          },
+        },
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching filtered invoices:", err);
+    res.status(500).json({ error: "Failed to fetch invoices: " + err.message });
+  }
+}
 
 
 export async function getdatesByBranch(req, res) {
@@ -721,18 +1205,19 @@ export async function getdatesByBranch(req, res) {
         totalQty: 0,
         totalAmount: 0,
         totalVat: 0,
+        totalSd: 0, // NEW: Zeroed-out SD
         totalDiscount: 0,
         totalTableDiscount: 0,
         cashPayments: 0,
         cardPayments: 0,
         mobilePayments: 0,
-        bankPayments: 0, // NEW: Zeroed-out bank payments
+        bankPayments: 0,
         orderTypeCounts: { dineIn: 0, takeaway: 0, delivery: 0 },
         deliveryProviderCounts: { pathao: 0, foodi: 0, foodpanda: 0, deliveryBoy: 0 },
         averageOrderValue: 0,
         salesByOrderType: { dineIn: 0, takeaway: 0, delivery: 0 },
         salesByDeliveryProvider: { pathao: 0, foodi: 0, foodpanda: 0, deliveryBoy: 0 },
-        paymentMethodCounts: { cash: 0, card: 0, mobile: 0, bank: 0 }, // NEW: Added bank
+        paymentMethodCounts: { cash: 0, card: 0, mobile: 0, bank: 0 },
         totalComplimentaryItems: 0,
         totalComplimentaryAmount: 0,
       });
@@ -744,6 +1229,7 @@ export async function getdatesByBranch(req, res) {
         acc.totalQty += order.totalQty;
         acc.totalAmount += order.totalAmount;
         acc.totalVat += order.vat || 0;
+        acc.totalSd += order.sd || 0; // NEW: Accumulate SD
         acc.totalDiscount += order.discount || 0; // This is the overall total discount
 
         // Tally complimentary items
@@ -774,7 +1260,6 @@ export async function getdatesByBranch(req, res) {
                 acc.mobilePayments += order.totalAmount;
                 acc.paymentMethodCounts.mobile += 1;
                 break;
-            // NEW: Handle bank payments
             case 'Bank':
                 acc.bankPayments += order.totalAmount;
                 acc.paymentMethodCounts.bank += 1;
@@ -827,17 +1312,18 @@ export async function getdatesByBranch(req, res) {
         totalQty: 0,
         totalAmount: 0,
         totalVat: 0,
+        totalSd: 0, // NEW: Initial value for SD
         totalDiscount: 0,
         totalTableDiscount: 0,
         cashPayments: 0,
         cardPayments: 0,
         mobilePayments: 0,
-        bankPayments: 0, // NEW: Initial value for bank payments
+        bankPayments: 0,
         orderTypeCounts: { dineIn: 0, takeaway: 0, delivery: 0 },
         deliveryProviderCounts: { pathao: 0, foodi: 0, foodpanda: 0, deliveryBoy: 0 },
         salesByOrderType: { dineIn: 0, takeaway: 0, delivery: 0 },
         salesByDeliveryProvider: { pathao: 0, foodi: 0, foodpanda: 0, deliveryBoy: 0 },
-        paymentMethodCounts: { cash: 0, card: 0, mobile: 0, bank: 0 }, // NEW: Added bank
+        paymentMethodCounts: { cash: 0, card: 0, mobile: 0, bank: 0 },
         totalComplimentaryItems: 0,
         totalComplimentaryAmount: 0,
     });
@@ -853,6 +1339,7 @@ export async function getdatesByBranch(req, res) {
       totalAmount: analysis.totalAmount,
       averageOrderValue: parseFloat(averageOrderValue.toFixed(2)),
       totalVat: analysis.totalVat,
+      totalSd: analysis.totalSd, // NEW: Added SD to response
       totalDiscount: analysis.totalDiscount,
       totalTableDiscount: analysis.totalTableDiscount,
       totalComplimentaryItems: analysis.totalComplimentaryItems,
@@ -861,7 +1348,7 @@ export async function getdatesByBranch(req, res) {
       cashPayments: analysis.cashPayments,
       cardPayments: analysis.cardPayments,
       mobilePayments: analysis.mobilePayments,
-      bankPayments: analysis.bankPayments, // NEW: Added bank payments to response
+      bankPayments: analysis.bankPayments,
       // Counts and Sales Breakdowns
       orderTypeCounts: analysis.orderTypeCounts,
       salesByOrderType: analysis.salesByOrderType,
@@ -875,6 +1362,7 @@ export async function getdatesByBranch(req, res) {
     res.status(500).json({ message: "An error occurred while processing your request.", error: err.message });
   }
 }
+
 
 
 export async function getPendingByBranch(req, res) {
@@ -1043,48 +1531,65 @@ export async function getInvoiceById(req, res) {
 
 // Create a new invoice
 export async function createInvoice(req, res) {
-  try {
+  try {
     const invoiceData = req.body;
     const result = await Invoice.create(invoiceData);
+
+    // Check if the creation was successful and the branch exists
+    if (result && result.branch) {
+        // Emit an event to all clients in the specific branch room
+        req.io.to(result.branch).emit('kitchen-update');
+    }
+
     res.status(201).json(result);
-  } catch (err) {
-    res.status(500).send({ error: err.message });
-  }
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
 }
 
 // Remove an invoice by ID
 export async function removeInvoice(req, res) {
-  const id = req.params.id;
-  try {
-    const result = await Invoice.findByIdAndDelete(id);
-    if (result) {
-      res.status(200).json({ message: "Food Order deleted successfully" });
-    } else {
-      res.status(404).json({ message: "Invoice not found" });
-    }
-  } catch (err) {
-    res.status(500).send({ error: err.message });
-  }
+  const id = req.params.id;
+  try {
+    const result = await Invoice.findByIdAndDelete(id);
+    if (result) {
+      // Check if the deleted document has a branch, then emit the event
+      if (result.branch) {
+        req.io.to(result.branch).emit('kitchen-update');
+      }
+      res.status(200).json({ message: "Food Order deleted successfully" });
+    } else {
+      res.status(404).json({ message: "Invoice not found" });
+    }
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
 }
 
-// Update an invoice by ID
 export async function updateInvoice(req, res) {
-  const id = req.params.id;
-  const invoiceData = req.body;
-  try {
-
+  const id = req.params.id;
+  const invoiceData = req.body;
+  try {
     const invoice = await Invoice.findById(id);
     if (!invoice) {
-      return res.status(404).json({ message: "Invoice not found" });
+        return res.status(404).json({ message: "Invoice not found" });
     }
 
     Object.assign(invoice, invoiceData);
     const result = await invoice.save();
+
+    // Check if the update was successful and the branch exists
+    if (result && result.branch) {
+        // Emit an event to all clients in the specific branch room
+        req.io.to(result.branch).emit('kitchen-update');
+    }
+
     res.status(200).json(result);
-  } catch (err) {
-    res.status(500).send({ error: err.message });
-  }
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
 }
+
 export const getSalesGroupedByDayName = async (req, res) => {
   try {
     const { branch } = req.params;

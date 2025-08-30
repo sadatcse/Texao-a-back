@@ -10,6 +10,22 @@ export async function getAllProducts(req, res) {
   }
 }
 
+export async function searchProductsByBranch(req, res) {
+    const { branch, query } = req.query; // Use req.query for search parameters
+    try {
+        const filter = { branch };
+        if (query) {
+            // Case-insensitive search on productName
+            filter.productName = { $regex: query, $options: 'i' };
+        }
+        const result = await Product.find(filter);
+        res.status(200).json(result);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
+}
+
+
 // Get products by category
 export async function getProductsByCategory(req, res) {
   const category = req.params.category;

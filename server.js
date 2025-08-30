@@ -1,6 +1,8 @@
 import express from "express";
 import environment from "dotenv";
 import cors from "cors";
+import http from "http"; // Import the http module
+import { Server } from "socket.io"; // Import Server from socket.io
 
 import fileUpload from "express-fileupload";
 import helmet from "helmet";
@@ -11,10 +13,8 @@ import routes from "./routes/routes.js";
 import path from "path";
 import passport from "passport";
 
-
-
+// Load environment variables
 environment.config();
-
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -22,13 +22,46 @@ const port = process.env.PORT || 5000;
 // Connect to the database
 connectDB();
 
+// --- Socket.IO Setup ---
+// Create an HTTP server using the Express app
+const server = http.createServer(app);
+// Attach Socket.IO to the HTTP server
+const io = new Server(server, {
+  cors: {
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000', 'https://pos.teaxo.com.bd', 'http://pos.teaxo.com.bd', 'http://192.168.0.167:3000'],
+    credentials: true,
+  },
+});
+
+// Pass the Socket.IO instance to the request object so it's available in route handlers
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
+// Socket.IO connection event
+io.on('connection', (socket) => {
+
+  // Listen for a "join-branch" event from the client
+  socket.on('join-branch', (branchName) => {
+    socket.join(branchName);
+
+  });
+
+  // Listen for disconnects
+  socket.on('disconnect', () => {
+
+  });
+});
+
+// --- End of Socket.IO Setup ---
+
 // Security middleware
 app.use(helmet({
   hidePoweredBy: true,
 }));
 
 app.use(passport.initialize());
-
 
 // Rate limiting
 const limiter = rateLimit({
@@ -39,9 +72,9 @@ app.use(limiter);
 
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-  'http://localhost:5173', 
-  'http://localhost:3000', 
-  'https://pos.teaxo.com.bd', 
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://pos.teaxo.com.bd',
   'http://pos.teaxo.com.bd',
   'http://192.168.0.167:3000'
 ];
@@ -70,8 +103,6 @@ app.use(express.static("public"));
 app.use("/api", routes);
 
 // Root route
-app.use(errorHandler);
-
 app.get("/", (req, res) => {
   res.status(200).json({ message: "Server is running." });
 });
@@ -80,8 +111,7 @@ app.get("/", (req, res) => {
 app.use(errorHandler);
 
 // Start server
-app.listen(port, () => {
-
+server.listen(port, () => {
   console.log(`Server started at ${new Date()}`);
-
+  console.log(`Server listening on port ${port}`);
 });

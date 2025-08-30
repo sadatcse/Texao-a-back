@@ -40,6 +40,17 @@ export async function getCategoryById(req, res) {
 export async function createCategory(req, res) {
   try {
     const categoryData = req.body;
+    const { branch } = categoryData;
+    
+    // Find the highest serial number for the given branch
+    const lastCategory = await Category.findOne({ branch }).sort({ serial: -1 }).exec();
+    
+    // Determine the new serial number
+    const newSerial = lastCategory ? lastCategory.serial + 1 : 1;
+    
+    // Add the generated serial to the category data
+    categoryData.serial = newSerial;
+    
     const result = await Category.create(categoryData);
     res.status(201).json(result);
   } catch (err) {
