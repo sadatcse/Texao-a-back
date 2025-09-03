@@ -1,9 +1,204 @@
 import Invoice from "./Invoices.model.js";
-
 import Product from "../Product/Product.model.js";
 import moment from 'moment-timezone';
+import Customer from "./../Customer/Customers.model.js";
+import mongoose from "mongoose";
 
-// Get all invoices
+const findAndLinkCustomer = async (invoiceData) => {
+    try {
+        if (invoiceData.customerMobile) {
+            const customer = await Customer.findOne({ mobile: invoiceData.customerMobile });
+            
+            if (customer) {
+                invoiceData.customerId = customer._id;
+                
+                if (!invoiceData.customerName) {
+                    invoiceData.customerName = customer.name;
+                }
+            } else {
+                console.log("Customer not found. Invoice will not be linked.");
+            }
+        }
+    } catch (error) {
+        console.error("Error linking customer to invoice:", error.message);
+    }
+    return invoiceData;
+};
+
+export async function createInvoice(req, res) {
+    try {
+        let invoiceData = req.body;
+        
+        invoiceData = await findAndLinkCustomer(invoiceData);
+
+        const result = await Invoice.create(invoiceData);
+
+        if (result && result.branch) {
+            req.io.to(result.branch).emit('kitchen-update');
+        }
+
+        res.status(201).json(result);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
+}
+
+export async function updateInvoice(req, res) {
+    const id = req.params.id;
+    let newInvoiceData = req.body;
+    try {
+        const originalInvoice = await Invoice.findById(id);
+        if (!originalInvoice) {
+            return res.status(404).json({ message: "Invoice not found" });
+        }
+        
+        // Find the customer and add their ID to the new invoice data
+        newInvoiceData = await findAndLinkCustomer(newInvoiceData);
+
+        // --- Start of new logic to handle customer profile update ---
+        if (originalInvoice.customerId) {
+            const customer = await Customer.findById(originalInvoice.customerId);
+            if (customer) {
+                // Calculate the difference in total amount and points
+                const oldTotalAmount = originalInvoice.totalAmount;
+                const oldEarnedPoints = originalInvoice.earnedPoints;
+
+                // Create a temporary invoice object to calculate the new values
+                const tempInvoice = new Invoice(newInvoiceData);
+                await tempInvoice.validate(); // Run validation to calculate totalAmount and other fields
+
+                const newTotalAmount = tempInvoice.totalAmount;
+                const newEarnedPoints = Math.floor(newTotalAmount / 100);
+
+                const amountDifference = newTotalAmount - oldTotalAmount;
+                const pointsDifference = newEarnedPoints - oldEarnedPoints;
+
+                // Update the customer's totals
+                customer.totalAmountSpent += amountDifference;
+                customer.currentPoints += pointsDifference;
+                await customer.save();
+
+                // Update the earned points in the new invoice data
+                newInvoiceData.earnedPoints = newEarnedPoints;
+            }
+        }
+        // --- End of new logic ---
+
+        const updatedInvoice = await Invoice.findByIdAndUpdate(id, newInvoiceData, {
+            new: true, // Return the modified document
+            runValidators: true // Ensure schema validations are run
+        });
+
+        // Check if the update was successful and the branch exists
+        if (updatedInvoice && updatedInvoice.branch) {
+            req.io.to(updatedInvoice.branch).emit('kitchen-update');
+        }
+
+        res.status(200).json(updatedInvoice);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
+}
+
+export async function removeInvoice(req, res) {
+    const id = req.params.id;
+    try {
+        const invoiceToDelete = await Invoice.findById(id);
+        if (!invoiceToDelete) {
+            return res.status(404).json({ message: "Invoice not found" });
+        }
+
+        // --- Start of new logic to update customer profile on deletion ---
+        if (invoiceToDelete.customerId) {
+            const customer = await Customer.findById(invoiceToDelete.customerId);
+            if (customer) {
+                // Subtract the invoice's values from the customer's totals
+                customer.totalAmountSpent -= invoiceToDelete.totalAmount;
+                customer.currentPoints -= invoiceToDelete.earnedPoints;
+                customer.numberOfOrders -= 1;
+                // Remove the invoice ID from the customer's invoices array
+                customer.invoices.pull(invoiceToDelete._id);
+                await customer.save();
+            }
+        }
+        // --- End of new logic ---
+
+        // Now, proceed with the deletion
+        const result = await Invoice.findByIdAndDelete(id);
+
+        if (result) {
+            if (result.branch) {
+                req.io.to(result.branch).emit('kitchen-update');
+            }
+            res.status(200).json({ message: "Food Order deleted successfully" });
+        } else {
+            res.status(404).json({ message: "Invoice not found" });
+        }
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
+}
+
+export const finalizeInvoice = async (req, res) => {
+    try {
+        const { id } = req.params;
+        let updateData = req.body;
+        
+        // Find the customer and add their ID to the updateData
+        updateData = await findAndLinkCustomer(updateData);
+        
+        // The main difference: explicitly set the order status
+        updateData.orderStatus = 'completed';
+
+        // Use findByIdAndUpdate, which does not trigger the pre-save hook
+        const finalizedInvoice = await Invoice.findByIdAndUpdate(id, updateData, {
+            new: true,
+            runValidators: true,
+        });
+        
+        if (!finalizedInvoice) {
+            return res.status(404).json({ message: "Invoice not found" });
+        }
+        
+        if (finalizedInvoice.customerId) {
+            const customer = await Customer.findById(finalizedInvoice.customerId);
+            
+            if (customer) {
+                // Get the existing invoice to get the old points
+                const oldInvoice = await Invoice.findById(id);
+                const oldTotalAmount = oldInvoice.totalAmount;
+                const oldEarnedPoints = oldInvoice.earnedPoints;
+
+                // Calculate the new points and amount
+                const pointsToAdd = Math.floor(finalizedInvoice.totalAmount / 100);
+
+                // Update the customer's records
+                customer.totalAmountSpent = customer.totalAmountSpent - oldTotalAmount + finalizedInvoice.totalAmount;
+                customer.currentPoints = customer.currentPoints - oldEarnedPoints + pointsToAdd;
+                customer.numberOfOrders += 1;
+                customer.invoices.push(finalizedInvoice._id);
+
+                await customer.save();
+            }
+        }
+        
+        if (finalizedInvoice && finalizedInvoice.branch) {
+            req.io.to(finalizedInvoice.branch).emit('kitchen-update');
+        }
+
+        res.status(200).json({
+            message: "Order finalized successfully!",
+            invoice: finalizedInvoice
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Error finalizing invoice",
+            error: error.message
+        });
+    }
+};
+
+
 export async function getAllInvoices(req, res) {
   try {
     const result = await Invoice.find();
@@ -74,37 +269,6 @@ export async function getFilteredInvoices(req, res) {
     res.status(500).json({ error: "Failed to fetch invoices: " + err.message });
   }
 }
-
-export const finalizeInvoice = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const updateData = req.body;
-        // The main difference: explicitly set the order status
-        updateData.orderStatus = 'completed';
-        const finalizedInvoice = await Invoice.findByIdAndUpdate(id, updateData, {
-            new: true, // Return the modified document
-            runValidators: true, // Ensure schema validations are run
-        });
-        if (!finalizedInvoice) {
-            return res.status(404).json({ message: "Invoice not found" });
-        }
-
-        // Check if the update was successful and the branch exists
-        if (finalizedInvoice && finalizedInvoice.branch) {
-            // Emit an event to all clients in the specific branch room
-            req.io.to(finalizedInvoice.branch).emit('kitchen-update');
-        }
-        res.status(200).json({
-            message: "Order finalized successfully!",
-            invoice: finalizedInvoice
-        });
-    } catch (error) {
-        res.status(500).json({
-            message: "Error finalizing invoice",
-            error: error.message
-        });
-    }
-};
 
 export async function getKitchenOrdersByBranch(req, res) {
   const { branch } = req.params;
@@ -1514,7 +1678,9 @@ export async function getDashboardByBranch(req, res) {
 
 
 
-// Get invoice by ID
+
+
+
 export async function getInvoiceById(req, res) {
   const id = req.params.id;
   try {
@@ -1527,67 +1693,6 @@ export async function getInvoiceById(req, res) {
   } catch (err) {
     res.status(500).send({ error: err.message });
   }
-}
-
-// Create a new invoice
-export async function createInvoice(req, res) {
-  try {
-    const invoiceData = req.body;
-    const result = await Invoice.create(invoiceData);
-
-    // Check if the creation was successful and the branch exists
-    if (result && result.branch) {
-        // Emit an event to all clients in the specific branch room
-        req.io.to(result.branch).emit('kitchen-update');
-    }
-
-    res.status(201).json(result);
-  } catch (err) {
-    res.status(500).send({ error: err.message });
-  }
-}
-
-// Remove an invoice by ID
-export async function removeInvoice(req, res) {
-  const id = req.params.id;
-  try {
-    const result = await Invoice.findByIdAndDelete(id);
-    if (result) {
-      // Check if the deleted document has a branch, then emit the event
-      if (result.branch) {
-        req.io.to(result.branch).emit('kitchen-update');
-      }
-      res.status(200).json({ message: "Food Order deleted successfully" });
-    } else {
-      res.status(404).json({ message: "Invoice not found" });
-    }
-  } catch (err) {
-    res.status(500).send({ error: err.message });
-  }
-}
-
-export async function updateInvoice(req, res) {
-  const id = req.params.id;
-  const invoiceData = req.body;
-  try {
-    const invoice = await Invoice.findById(id);
-    if (!invoice) {
-        return res.status(404).json({ message: "Invoice not found" });
-    }
-
-    Object.assign(invoice, invoiceData);
-    const result = await invoice.save();
-
-    // Check if the update was successful and the branch exists
-    if (result && result.branch) {
-        // Emit an event to all clients in the specific branch room
-        req.io.to(result.branch).emit('kitchen-update');
-    }
-
-    res.status(200).json(result);
-  } catch (err) {
-    res.status(500).send({ error: err.message });
-  }
 }
 
 export const getSalesGroupedByDayName = async (req, res) => {
