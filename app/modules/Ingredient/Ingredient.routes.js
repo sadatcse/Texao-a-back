@@ -8,6 +8,7 @@ import {
   updateIngredient,
   updateStockAlert,
   getActiveIngredientsByBranch,
+  getIngredientsByBranchAndCategory, // --- NEWLY IMPORTED ---
 } from "./Ingredient.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js";
 
@@ -30,5 +31,13 @@ IngredientRoutes.get(
   authenticateToken,
   getActiveIngredientsByBranch
 );
+
+
+IngredientRoutes.get(
+  "/:branch/:category/filter",
+  authenticateToken,
+  getIngredientsByBranchAndCategory
+);
+// --- END NEW ROUTE ---
 
 export default IngredientRoutes;

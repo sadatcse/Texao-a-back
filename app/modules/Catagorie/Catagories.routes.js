@@ -14,7 +14,7 @@ const CategoryRoutes = Router();
 
 // Protect all routes with authentication middleware
 CategoryRoutes.get("/", authenticateToken, getAllCategories);
-CategoryRoutes.get("/:branch/get-all", authenticateToken, getCategoryByBranch);
+CategoryRoutes.get("/:branch/get-all",  getCategoryByBranch);
 CategoryRoutes.get("/get-id/:id", authenticateToken, getCategoryById);
 CategoryRoutes.post("/post", authenticateToken, createCategory);
 CategoryRoutes.delete("/delete/:id", authenticateToken, removeCategory);

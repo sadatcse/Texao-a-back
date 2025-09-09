@@ -21,13 +21,11 @@ const IngredientSchema = Schema(
       required: [true, "Please provide a SKU"],
       unique: true,
     },
-    // --- NEW FIELD ---
     stockAlert: {
       type: Number,
       default: 0, // Default to 0, meaning no alert
       min: [0, "Stock alert cannot be negative"],
     },
-    // --- END NEW FIELD ---
     branch: {
       type: String,
       required: [true, "Please provide a branch"],

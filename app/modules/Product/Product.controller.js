@@ -10,6 +10,8 @@ export async function getAllProducts(req, res) {
   }
 }
 
+
+
 export async function searchProductsByBranch(req, res) {
     const { branch, query } = req.query; // Use req.query for search parameters
     try {

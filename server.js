@@ -64,11 +64,11 @@ app.use(helmet({
 app.use(passport.initialize());
 
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 1000, // Limit each IP to 100 requests
-});
-app.use(limiter);
+// const limiter = rateLimit({
+//   windowMs: 5 * 60 * 1000, // 5 minutes
+//   max: 10000, // Limit each IP to 100 requests
+// });
+// app.use(limiter);
 
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [

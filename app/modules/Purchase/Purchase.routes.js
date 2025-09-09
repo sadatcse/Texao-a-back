@@ -5,7 +5,8 @@ import {
   getPurchaseById,
   updatePurchase,
   removePurchase,
-  getNextInvoiceNumber
+  getNextInvoiceNumber,
+   getPurchaseAnalysis
 } from "./Purchase.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js";
 
@@ -15,6 +16,7 @@ PurchaseRoutes.post("/post", authenticateToken, createPurchase);
 PurchaseRoutes.get("/:branch/get-all", authenticateToken, getPurchasesByBranch);
 PurchaseRoutes.get("/get-id/:id", authenticateToken, getPurchaseById);
 PurchaseRoutes.get("/next-invoice/:branch", authenticateToken, getNextInvoiceNumber);
+PurchaseRoutes.get("/analysis/:branch",  getPurchaseAnalysis);
 
 // Basic update/delete routes. Note: These do not adjust stock.
 PurchaseRoutes.put("/update/:id", authenticateToken, updatePurchase);

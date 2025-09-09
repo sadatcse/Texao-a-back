@@ -96,9 +96,168 @@ export async function getPurchasesByBranch(req, res) {
   }
 }
 
-/**
- * Retrieves a single purchase by its ID, populating related data.
- */
+export async function getPurchaseAnalysis(req, res) {
+  const { branch } = req.params;
+  const { year, month, page = 1, limit = 10 } = req.query; // add page & limit
+
+  // --- Input Validation ---
+  if (!year || !month) {
+    return res.status(400).json({ error: "Year and month query parameters are required." });
+  }
+  const currentYear = parseInt(year);
+  const currentMonth = parseInt(month);
+  const pageNumber = parseInt(page);
+  const pageSize = parseInt(limit);
+
+  if (isNaN(currentYear) || isNaN(currentMonth) || currentMonth < 1 || currentMonth > 12) {
+    return res.status(400).json({ error: "Invalid year or month provided." });
+  }
+  if (isNaN(pageNumber) || pageNumber < 1 || isNaN(pageSize) || pageSize < 1) {
+    return res.status(400).json({ error: "Invalid pagination parameters." });
+  }
+
+  // --- Date Range Calculation ---
+  const startDate = new Date(currentYear, currentMonth - 1, 1);
+  const endDate = new Date(currentYear, currentMonth, 1);
+
+  const prevMonthDate = new Date(startDate);
+  prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+  const prevStartDate = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 1);
+  const prevEndDate = startDate;
+
+  try {
+    const getMonthlyData = async (branch, start, end) => {
+      return Purchase.aggregate([
+        {
+          $match: {
+            branch: branch,
+            purchaseDate: { $gte: start, $lt: end },
+          },
+        },
+        { $unwind: "$items" },
+        {
+          $group: {
+            _id: "$items.ingredient",
+            totalQuantity: { $sum: "$items.quantity" },
+            averageUnitPrice: { $avg: "$items.unitPrice" },
+            totalAmount: { $sum: "$items.totalPrice" },
+          },
+        },
+        {
+          $lookup: {
+            from: "ingredients",
+            localField: "_id",
+            foreignField: "_id",
+            as: "ingredientInfo",
+          },
+        },
+        { $unwind: "$ingredientInfo" },
+        {
+          $project: {
+            _id: 0,
+            ingredientId: "$_id",
+            ingredientName: "$ingredientInfo.name",
+            unit: "$ingredientInfo.unit",
+            totalQuantity: 1,
+            averageUnitPrice: { $round: ["$averageUnitPrice", 2] },
+            totalAmount: 1,
+          },
+        },
+      ]);
+    };
+
+    const currentMonthData = await getMonthlyData(branch, startDate, endDate);
+    const previousMonthData = await getMonthlyData(branch, prevStartDate, prevEndDate);
+
+    const previousMonthMap = new Map(
+      previousMonthData.map(item => [item.ingredientId.toString(), item])
+    );
+
+    const analysis = currentMonthData.map(currentItem => {
+      const previousItem = previousMonthMap.get(currentItem.ingredientId.toString());
+      if (previousItem) previousMonthMap.delete(currentItem.ingredientId.toString());
+
+      const calculateChange = (current, previous) => {
+        if (!previous || previous === 0) return 100;
+        return ((current - previous) / previous) * 100;
+      };
+
+      return {
+        ...currentItem,
+        comparison: {
+          previousMonth: {
+            totalQuantity: previousItem?.totalQuantity || 0,
+            averageUnitPrice: previousItem?.averageUnitPrice || 0,
+            totalAmount: previousItem?.totalAmount || 0,
+          },
+          change: {
+            quantityChangePercent: calculateChange(currentItem.totalQuantity, previousItem?.totalQuantity),
+            unitPriceChangePercent: calculateChange(currentItem.averageUnitPrice, previousItem?.averageUnitPrice),
+            totalAmountChangePercent: calculateChange(currentItem.totalAmount, previousItem?.totalAmount),
+          },
+        },
+      };
+    });
+
+    for (const leftoverItem of previousMonthMap.values()) {
+      analysis.push({
+        ingredientId: leftoverItem.ingredientId,
+        ingredientName: leftoverItem.ingredientName,
+        unit: leftoverItem.unit,
+        totalQuantity: 0,
+        averageUnitPrice: 0,
+        totalAmount: 0,
+        comparison: {
+          previousMonth: {
+            totalQuantity: leftoverItem.totalQuantity,
+            averageUnitPrice: leftoverItem.averageUnitPrice,
+            totalAmount: leftoverItem.totalAmount,
+          },
+          change: {
+            quantityChangePercent: -100,
+            unitPriceChangePercent: -100,
+            totalAmountChangePercent: -100,
+          },
+        },
+      });
+    }
+
+    // --- Pagination Logic ---
+const totalItems = analysis.length;
+const totalPages = Math.ceil(totalItems / pageSize);
+const currentPage = Math.min(pageNumber, totalPages || 1); 
+
+const startIndex = (currentPage - 1) * pageSize;
+const endIndex = startIndex + pageSize;
+const paginatedData = analysis.slice(startIndex, endIndex);
+
+    res.status(200).json({
+      period: {
+        year: currentYear,
+        month: currentMonth,
+        startDate,
+        endDate,
+      },
+      previousPeriod: {
+        year: prevStartDate.getFullYear(),
+        month: prevStartDate.getMonth() + 1,
+        startDate: prevStartDate,
+        endDate: prevEndDate,
+      },
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: pageNumber,
+        pageSize,
+      },
+      analysis: paginatedData,
+    });
+
+  } catch (err) {
+    res.status(500).send({ error: "Failed to generate purchase analysis.", details: err.message });
+  }
+}
+
 export async function getPurchaseById(req, res) {
   const id = req.params.id;
   try {

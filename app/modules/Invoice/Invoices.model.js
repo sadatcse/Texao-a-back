@@ -14,7 +14,14 @@ const generateInvoiceSerial = () => {
   return `${year}${month}${date}${hours}${minutes}${seconds}`;
 };
 
+// --- Sub-schema for products within an invoice ---
 const ProductSchema = Schema({
+  // This productId is crucial for linking sales to recipes accurately.
+  productId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true,
+  },
   productName: { type: String, required: true },
   qty: { type: Number, required: true },
   rate: { type: Number, required: true },
@@ -140,6 +147,6 @@ InvoiceSchema.pre('save', async function(next) {
     next();
 });
 
-const Invoice = model("Invoice", InvoiceSchema);
+const Invoice = mongoose.models.Invoice || model("Invoice", InvoiceSchema);
 
 export default Invoice;

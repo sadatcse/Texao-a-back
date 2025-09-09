@@ -91,6 +91,6 @@ CustomerSchema.pre("save", async function (next) {
     next();
 });
 
-const Customer = model("Purchaser", CustomerSchema);
+const Customer = mongoose.models.Purchaser || model("Purchaser", CustomerSchema);
 
 export default Customer;

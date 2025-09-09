@@ -17,7 +17,7 @@ import CustomerRoutes from "../app/modules/Customer/Customers.routes.js";
 import TransactionLogRoutes from "../app/modules/TransactionLog/TransactionLog.routes.js";
 import TableReservationRoutes from "../app/modules/TableReservation/TableReservation.routes.js";
 import TableCombine from "../app/modules/TableCombine/tableStatus.js";
-
+import RecipeRoutes from "../app/modules/Recipe/Recipe.routes.js"
 import ReportRoutes from "../app/modules/Report/Report.routes.js";
 import ExpenseRoutes from "../app/modules/Expense/Expense.routes.js";
 import VendorRoutes from "../app/modules/Vendor/Vendor.routes.js";
@@ -25,6 +25,8 @@ import IngredientCategoryRoutes from "../app/modules/IngredientCategory/Ingredie
 import IngredientRoutes from "../app/modules/Ingredient/Ingredient.routes.js";
 import StockRoutes from "../app/modules/Stock/Stock.routes.js";
 import PurchaseRoutes from "../app/modules/Purchase/Purchase.routes.js";
+import ReviewRoutes from "../app/modules/Review/Review.routes.js"; 
+
 // Other Imports
 import { getImageUrl } from "../config/space.js";
 import { sendTestEmail } from "../controllers/emailController.js";
@@ -55,7 +57,7 @@ routes.use("/transaction-logs", TransactionLogRoutes);
 routes.use("/reservation", TableReservationRoutes);
 routes.use("/tablecombine", TableCombine);
 
-// New Routes
+// Inventory & Expense Routes
 routes.use("/expense", ExpenseRoutes);
 routes.use("/vendor", VendorRoutes);
 routes.use("/ingredient-category", IngredientCategoryRoutes);
@@ -63,6 +65,8 @@ routes.use("/ingredient", IngredientRoutes);
 routes.use("/stock", StockRoutes);
 routes.use("/purchase", PurchaseRoutes);
 routes.use("/reports", ReportRoutes);
+routes.use("/recipes", RecipeRoutes);
+routes.use("/review", ReviewRoutes);
 
 // Other Routes
 routes.post("/send-email", sendTestEmail);

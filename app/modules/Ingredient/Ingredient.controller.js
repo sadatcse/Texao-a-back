@@ -1,6 +1,6 @@
 import Ingredient from "./Ingredient.model.js";
 
-// Get all ingredients and populate their category details
+
 export async function getAllIngredients(req, res) {
   try {
     const result = await Ingredient.find().populate("category");
@@ -10,7 +10,7 @@ export async function getAllIngredients(req, res) {
   }
 }
 
-// Get ingredients by branch and populate their category details
+
 export async function getIngredientByBranch(req, res) {
   const branch = req.params.branch;
   try {
@@ -21,7 +21,7 @@ export async function getIngredientByBranch(req, res) {
   }
 }
 
-// Get a single ingredient by ID and populate its category details
+
 export async function getIngredientById(req, res) {
   const id = req.params.id;
   try {
@@ -36,7 +36,7 @@ export async function getIngredientById(req, res) {
   }
 }
 
-// Create a new ingredient
+
 export async function createIngredient(req, res) {
   try {
     const ingredientData = req.body;
@@ -50,7 +50,6 @@ export async function createIngredient(req, res) {
   }
 }
 
-// Remove an ingredient by ID
 export async function removeIngredient(req, res) {
   const id = req.params.id;
   try {
@@ -65,7 +64,7 @@ export async function removeIngredient(req, res) {
   }
 }
 
-// Get active ingredients by branch and populate their category details
+
 export async function getActiveIngredientsByBranch(req, res) {
   const branch = req.params.branch;
   try {
@@ -78,7 +77,7 @@ export async function getActiveIngredientsByBranch(req, res) {
   }
 }
 
-// Update an ingredient by ID
+
 export async function updateIngredient(req, res) {
   const id = req.params.id;
   const ingredientData = req.body;
@@ -88,7 +87,7 @@ export async function updateIngredient(req, res) {
       runValidators: true,
     });
     if (result) {
-      // Populate the category of the updated document before sending it back
+
       const populatedResult = await result.populate("category");
       res.status(200).json(populatedResult);
     } else {
@@ -107,7 +106,9 @@ export async function updateStockAlert(req, res) {
   const { stockAlert } = req.body;
 
   if (stockAlert == null || stockAlert < 0) {
-    return res.status(400).send({ error: "A valid stock alert value is required." });
+    return res
+      .status(400)
+      .send({ error: "A valid stock alert value is required." });
   }
 
   try {
@@ -126,3 +127,17 @@ export async function updateStockAlert(req, res) {
     res.status(500).send({ error: err.message });
   }
 }
+
+
+export async function getIngredientsByBranchAndCategory(req, res) {
+  const { branch, category } = req.params;
+  try {
+    const result = await Ingredient.find({ branch, category }).populate(
+      "category"
+    );
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
+}
+
