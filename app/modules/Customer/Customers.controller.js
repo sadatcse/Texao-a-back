@@ -1,4 +1,4 @@
-import Customer from "./Customers.model";
+import Customer from "./Customers.model.js";
 
 // Get all customers (unchanged)
 export async function getAllCustomers(req, res) {
