@@ -1,7 +1,7 @@
 import Invoice from "./Invoices.model.js";
 import Product from "../Product/Product.model.js";
 import moment from 'moment-timezone';
-import Customer from "./../Customer/Customers.model.js";
+import Customer from "../Customer/Customers.model.js";
 import mongoose from "mongoose";
 
 const findAndLinkCustomer = async (invoiceData) => {

@@ -1,6 +1,6 @@
 import Review from './Review.model.js';
-import Customer from '../customer/Customers.model.js';
-import Invoice from '../invoice/Invoices.model.js'; 
+import Customer from '../Customer/Customers.model.js';
+import Invoice from '../Invoice/Invoices.model.js'; 
 import Table from '../Table/Tables.model.js'; 
 
 // Check customer existence by mobile number
