@@ -76,7 +76,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:3000',
   'https://pos.teaxo.com.bd',
   'http://pos.teaxo.com.bd',
-  'http://192.168.0.167:3000'
+  'http://192.168.0.167:3000/'
 ];
 app.use(cors({
   origin: (origin, callback) => {

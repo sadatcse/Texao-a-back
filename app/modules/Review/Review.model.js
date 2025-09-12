@@ -42,7 +42,7 @@ const ReviewSchema = new Schema(
     },
     bestFoodName: {
       type: String,
-      required: false, // Optional for the customer to select
+      required: false,
     },
     branch: {
       type: String,
