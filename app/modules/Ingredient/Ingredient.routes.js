@@ -6,6 +6,7 @@ import {
   getIngredientById,
   removeIngredient,
   updateIngredient,
+  getPaginatedIngredientsByBranch,
   updateStockAlert,
   getActiveIngredientsByBranch,
   getIngredientsByBranchAndCategory, // --- NEWLY IMPORTED ---
@@ -14,7 +15,8 @@ import { authenticateToken } from "../../../middleware/authMiddleware.js";
 
 const IngredientRoutes = Router();
 
-// Protect all routes with authentication middleware
+IngredientRoutes.get("/:branch/pagination", authenticateToken, getPaginatedIngredientsByBranch);
+
 IngredientRoutes.get("/", authenticateToken, getAllIngredients);
 IngredientRoutes.get(
   "/:branch/get-all",

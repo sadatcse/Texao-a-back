@@ -5,6 +5,7 @@ import {
     checkCustomerByMobile,
     prepareReviewPage,
     prepareReviewPageByInvoice,
+    deleteReview,
     getReviewsByBranch
 } from "./Review.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js"; 
@@ -27,6 +28,6 @@ ReviewRoutes.get("/", authenticateToken, getAllReviews);
 
 ReviewRoutes.get("/branch/:branch", getReviewsByBranch);
 
-
+ReviewRoutes.delete("/:id", authenticateToken, deleteReview);
 export default ReviewRoutes;
 

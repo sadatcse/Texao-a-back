@@ -52,6 +52,12 @@ const PurchaseSchema = Schema(
       type: Number,
       default: 0,
     },
+    paymentMethod: {
+      type: String,
+      required: [true, "Please provide a payment method"],
+      enum: ["Cash", "Card", "Mobile", "Other"],
+      default: "Cash",
+    },
     branch: {
       type: String,
       required: [true, "Please provide a branch"],

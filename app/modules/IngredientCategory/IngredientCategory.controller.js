@@ -47,7 +47,41 @@ export async function createIngredientCategory(req, res) {
   }
 }
 
-// Remove an ingredient category by ID
+export async function getPaginatedCategoriesByBranch(req, res) {
+    const { branch } = req.params;
+    const { search = '', page = 1, limit = 10 } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    try {
+        const query = {
+            branch: branch,
+            categoryName: { $regex: search, $options: 'i' }
+        };
+
+        const totalDocuments = await IngredientCategory.countDocuments(query);
+        const totalPages = Math.ceil(totalDocuments / limitNum);
+        const categories = await IngredientCategory.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum);
+
+        res.status(200).json({
+            data: categories,
+            pagination: {
+                totalDocuments,
+                totalPages,
+                currentPage: pageNum,
+                limit: limitNum,
+            },
+        });
+
+    } catch (err) {
+        res.status(500).send({ error: "Server error fetching categories: " + err.message });
+    }
+}
 export async function removeIngredientCategory(req, res) {
   const id = req.params.id;
   try {

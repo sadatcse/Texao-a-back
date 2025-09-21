@@ -6,17 +6,19 @@ import {
   getIngredientCategoryById,
   removeIngredientCategory,
   updateIngredientCategory,
+  getPaginatedCategoriesByBranch,
   getActiveIngredientCategoriesByBranch,
 } from "./IngredientCategory.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js";
 
 const IngredientCategoryRoutes = Router();
+IngredientCategoryRoutes.get("/:branch/pagination", authenticateToken, getPaginatedCategoriesByBranch);
 
 // Protect all routes with authentication middleware
 IngredientCategoryRoutes.get("/", authenticateToken, getAllIngredientCategories);
 IngredientCategoryRoutes.get(
   "/:branch/get-all",
-  authenticateToken,
+
   getIngredientCategoryByBranch
 );
 IngredientCategoryRoutes.get(

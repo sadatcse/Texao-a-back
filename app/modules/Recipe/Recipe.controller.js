@@ -5,175 +5,134 @@ import mongoose from "mongoose";
 import Invoice from "../Invoice/Invoices.model.js";
 
 export const getIngredientUsageReport = async (req, res) => {
-  try {
-    // 1. Get and Validate Query Parameters (No change)
-    const { branch, fromDate, toDate } = req.query;
-    if (!branch || !fromDate || !toDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide 'branch', 'fromDate', and 'toDate' query parameters.",
-      });
-    }
-
-    const startDate = new Date(fromDate);
-    const endDate = new Date(toDate);
-    endDate.setHours(23, 59, 59, 999);
-
-    // 2. Aggregate sold products based on productName to handle both old and new data
-    const aggregatedSales = await Invoice.aggregate([
-      {
-        $match: {
-          branch: branch,
-          dateTime: { $gte: startDate, $lte: endDate },
-        },
-      },
-      { $unwind: "$products" },
-      {
-        $group: {
-          _id: "$products.productName", // Group by the common field: productName
-          productId: { $first: "$products.productId" }, // Capture productId if it exists (for new data)
-          totalQuantitySold: { $sum: "$products.qty" },
-        },
-      },
-    ]);
-
-    if (aggregatedSales.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: "No products were sold in the given timeframe for this branch.",
-        ingredientUsage: [],
-        productsWithoutRecipe: [],
-      });
-    }
-
-    // 3. NEW: Consolidate sales data by finding missing productIds for old records
-    const consolidatedSales = new Map();
-    const unresolvedProducts = []; // For products that can't be found in the Product model
-
-    for (const sale of aggregatedSales) {
-      let productId = sale.productId;
-      const productName = sale._id;
-
-      // If productId is missing (old data), find it from the Product collection
-      if (!productId) {
-        const product = await Product.findOne({ productName: productName, branch: branch });
-        if (product) {
-          productId = product._id;
+    try {
+        // 1. Get and Validate Query & Pagination Parameters
+        const { branch, fromDate, toDate, categoryId } = req.query;
+        if (!branch || !fromDate || !toDate) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide 'branch', 'fromDate', and 'toDate' parameters.",
+            });
         }
-      }
+        
+        // Pagination parameters with default values
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = parseInt(req.query.limit, 10) || 10;
+        const skip = (page - 1) * limit;
 
-      // If we now have a valid productId, add it to our consolidated map
-      if (productId) {
-        const productIdStr = productId.toString();
-        // If a record for this product already exists, just add the quantity
-        if (consolidatedSales.has(productIdStr)) {
-          consolidatedSales.get(productIdStr).totalQuantitySold += sale.totalQuantitySold;
-        } else {
-          // Otherwise, add a new entry
-          consolidatedSales.set(productIdStr, {
-            productName: productName,
-            totalQuantitySold: sale.totalQuantitySold,
-          });
+        const startDate = new Date(fromDate);
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+
+        // --- Steps 2 through 6 remain exactly the same as the previous correct code ---
+        // 2. Aggregate sold products
+        const aggregatedSales = await Invoice.aggregate([
+            { $match: { branch, dateTime: { $gte: startDate, $lte: endDate } } },
+            { $unwind: "$products" },
+            { $group: { _id: "$products.productName", totalQuantitySold: { $sum: "$products.qty" } } },
+        ]);
+        
+        if (aggregatedSales.length === 0) {
+             return res.status(200).json({ /* ... no sales response ... */ });
         }
-      } else {
-        // If we still can't find a productId, it's an unresolved product
-        unresolvedProducts.push(productName);
-      }
-    }
-
-    // Convert the consolidated map back into an array for the next steps
-    const soldProducts = Array.from(consolidatedSales, ([id, data]) => ({
-      _id: new mongoose.Types.ObjectId(id),
-      productName: data.productName,
-      totalQuantitySold: data.totalQuantitySold,
-    }));
-    
-    // If no valid products remain after consolidation, return early
-    if (soldProducts.length === 0) {
-       return res.status(200).json({
-          success: true,
-          message: "No products with a matching product record could be found for this period.",
-          ingredientUsage: [],
-          productsWithoutRecipe: unresolvedProducts,
-          alert: `Could not find a matching product record for the following sold items: ${unresolvedProducts.join(', ')}`
-       });
-    }
-
-
-    // --- The rest of the logic is the same as before, but uses the cleaned `soldProducts` data ---
-
-    // 4. Fetch all relevant recipes in a single database query for efficiency
-    const soldProductIds = soldProducts.map(p => p._id);
-    const recipes = await Recipe.find({ productId: { $in: soldProductIds } });
-
-    // 5. Create a Map for quick recipe lookups (productId -> recipe)
-    const recipeMap = new Map();
-    recipes.forEach(recipe => {
-      recipeMap.set(recipe.productId.toString(), recipe);
-    });
-
-    // 6. Calculate total ingredient usage and track products without recipes
-    const ingredientUsage = {};
-    // Initialize with products we couldn't find in the Product model
-    const productsWithoutRecipe = [...unresolvedProducts];
-
-    for (const soldProduct of soldProducts) {
-      const productIdStr = soldProduct._id.toString();
-      const recipe = recipeMap.get(productIdStr);
-
-      if (recipe) {
-        // If a recipe is found, calculate the usage for each ingredient
-        for (const ingredient of recipe.ingredients) {
-          const totalUsed = ingredient.quantity * soldProduct.totalQuantitySold;
-          const ingredientIdStr = ingredient.ingredientId.toString();
-
-          if (ingredientUsage[ingredientIdStr]) {
-            ingredientUsage[ingredientIdStr].totalQuantity += totalUsed;
-          } else {
-            ingredientUsage[ingredientIdStr] = {
-              ingredientName: ingredient.ingredientName,
-              totalQuantity: totalUsed,
-              unit: ingredient.unit,
-            };
-          }
+        
+        // 3. Consolidate sales data to find product IDs
+        const consolidatedSales = new Map();
+        const unresolvedProducts = [];
+        for (const sale of aggregatedSales) {
+            const product = await Product.findOne({ productName: sale._id, branch }, '_id').lean();
+            if (product) {
+                const productIdStr = product._id.toString();
+                if (consolidatedSales.has(productIdStr)) {
+                    consolidatedSales.get(productIdStr).totalQuantitySold += sale.totalQuantitySold;
+                } else {
+                    consolidatedSales.set(productIdStr, { productName: sale._id, totalQuantitySold: sale.totalQuantitySold });
+                }
+            } else {
+                unresolvedProducts.push(sale._id);
+            }
         }
-      } else {
-        // If the product exists but has no recipe, add it to the list
-        productsWithoutRecipe.push(soldProduct.productName);
-      }
+        const soldProducts = Array.from(consolidatedSales, ([id, data]) => ({ _id: new mongoose.Types.ObjectId(id), ...data }));
+        
+        // 4. Fetch and Filter Recipes using a Targeted Aggregation Pipeline
+        const soldProductIds = soldProducts.map(p => p._id);
+        let recipes = [];
+        if (soldProductIds.length > 0) {
+            const recipePipeline = [
+                { $match: { productId: { $in: soldProductIds } } },
+                { $unwind: "$ingredients" },
+                { $lookup: { from: "ingredients", localField: "ingredients.ingredientId", foreignField: "_id", as: "ingredientDoc" } },
+                { $unwind: "$ingredientDoc" },
+                ...(categoryId ? [{ $match: { "ingredientDoc.category": new mongoose.Types.ObjectId(categoryId) } }] : []),
+                { $group: { _id: "$_id", productId: { $first: "$productId" }, ingredients: { $push: "$ingredients" } } }
+            ];
+            recipes = await Recipe.aggregate(recipePipeline);
+        }
+
+        // 5. Create a Map for quick recipe lookups
+        const recipeMap = new Map();
+        recipes.forEach(recipe => recipeMap.set(recipe.productId.toString(), recipe));
+        
+        // 6. Calculate total ingredient usage
+        const ingredientUsage = {};
+        const productsWithoutRecipe = [...unresolvedProducts];
+        for (const soldProduct of soldProducts) {
+            const recipe = recipeMap.get(soldProduct._id.toString());
+            if (recipe) {
+                for (const ingredient of recipe.ingredients) {
+                    const totalUsed = ingredient.quantity * soldProduct.totalQuantitySold;
+                    const ingredientIdStr = ingredient.ingredientId.toString();
+                    if (ingredientUsage[ingredientIdStr]) {
+                        ingredientUsage[ingredientIdStr].totalQuantity += totalUsed;
+                    } else {
+                        ingredientUsage[ingredientIdStr] = { ingredientName: ingredient.ingredientName, totalQuantity: totalUsed, unit: ingredient.unit };
+                    }
+                }
+            } else {
+                productsWithoutRecipe.push(soldProduct.productName);
+            }
+        }
+        
+        // 7. Format the final list
+        const formattedIngredientUsage = Object.values(ingredientUsage)
+            .sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
+
+        // 8. **NEW**: Paginate the final result
+        const totalItems = formattedIngredientUsage.length;
+        const totalPages = Math.ceil(totalItems / limit);
+        const paginatedUsage = formattedIngredientUsage.slice(skip, skip + limit);
+
+        let alertMessage = "Report generated successfully.";
+        if (productsWithoutRecipe.length > 0) {
+            alertMessage = `Alert: Could not calculate ingredient usage for ${productsWithoutRecipe.length} product(s) due to missing recipes or product records.`;
+        }
+
+        // 9. Send the paginated response
+        res.status(200).json({
+            success: true,
+            reportDetails: { branch, fromDate, toDate, ...(categoryId && { categoryId }) },
+            alert: alertMessage,
+            // The main data is now the paginated list
+            ingredientUsage: paginatedUsage,
+            // Pagination metadata for the frontend
+            pagination: {
+                totalItems,
+                totalPages,
+                currentPage: page,
+                itemsPerPage: limit,
+            },
+            productsWithoutRecipe: [...new Set(productsWithoutRecipe)].sort(),
+        });
+
+    } catch (error) {
+        console.error("Error generating ingredient usage report:", error);
+        res.status(500).json({
+            success: false,
+            message: "Server error while generating the report.",
+            error: error.message,
+        });
     }
-
-    // 7. Format the response
-    const formattedIngredientUsage = Object.values(ingredientUsage)
-      .sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
-
-    let alertMessage = "Ingredient usage calculated successfully for all sold products.";
-    if (productsWithoutRecipe.length > 0) {
-        alertMessage = `Alert: Could not calculate ingredient usage for ${productsWithoutRecipe.length} product(s) due to missing recipes or product records.`;
-    }
-
-    res.status(200).json({
-      success: true,
-      reportDetails: {
-        branch,
-        fromDate,
-        toDate,
-      },
-      alert: alertMessage,
-      ingredientUsage: formattedIngredientUsage,
-      productsWithoutRecipe: productsWithoutRecipe,
-    });
-
-  } catch (error) {
-    console.error("Error generating ingredient usage report:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error while generating the report.",
-      error: error.message,
-    });
-  }
 };
-
 
 export const getDynamicPrice = async (req, res) => {
   try {

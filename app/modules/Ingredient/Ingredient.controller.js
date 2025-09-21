@@ -141,3 +141,76 @@ export async function getIngredientsByBranchAndCategory(req, res) {
   }
 }
 
+export async function getPaginatedIngredientsByBranch(req, res) {
+    const { branch } = req.params;
+    const { search = '', page = 1, limit = 10 } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    try {
+        const searchPipeline = [
+            { $match: { branch: branch } },
+            {
+                $lookup: {
+                    from: "ingredientcategories",
+                    localField: "category",
+                    foreignField: "_id",
+                    as: "categoryDetails"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$categoryDetails",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $match: {
+                    $or: [
+                        { name: { $regex: search, $options: 'i' } },
+                        { sku: { $regex: search, $options: 'i' } },
+                        { "categoryDetails.categoryName": { $regex: search, $options: 'i' } }
+                    ]
+                }
+            }
+        ];
+
+        const dataPipeline = [
+            ...searchPipeline,
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limitNum },
+            {
+                $project: {
+                    name: 1,
+                    category: "$categoryDetails",
+                    unit: 1,
+                    sku: 1,
+                    stockAlert: 1,
+                    branch: 1,
+                    isActive: 1,
+                    createdAt: 1,
+                    updatedAt: 1
+                }
+            }
+        ];
+
+        const countPipeline = [...searchPipeline, { $count: 'total' }];
+
+        const [result] = await Ingredient.aggregate([{ $facet: { data: dataPipeline, count: countPipeline } }]);
+        
+        const ingredients = result.data;
+        const totalDocuments = result.count[0] ? result.count[0].total : 0;
+        const totalPages = Math.ceil(totalDocuments / limitNum);
+
+        res.status(200).json({
+            data: ingredients,
+            pagination: { totalDocuments, totalPages, currentPage: pageNum, limit: limitNum }
+        });
+
+    } catch (err) {
+        res.status(500).send({ error: "Server error fetching ingredients: " + err.message });
+    }
+}

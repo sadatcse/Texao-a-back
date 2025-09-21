@@ -1,13 +1,26 @@
+// src/api/Stock/Stock.routes.js
+
 import { Router } from "express";
-import { getStockByBranch, adjustStock } from "./Stock.controller.js";
-import { authenticateToken } from "../../../middleware/authMiddleware.js";
+import {
+    getStockByBranch,
+    adjustStock,
+    getStockMovements,
+    updateStockAlert
+} from "./Stock.controller.js";
+import { authenticateToken } from "../../../middleware/authMiddleware.js"; // Adjust path as needed
 
 const StockRoutes = Router();
 
-// Get all stock items for a branch
-StockRoutes.get("/:branch/get-all", authenticateToken, getStockByBranch);
+// Get all stock items for a branch with filtering and pagination
+StockRoutes.get("/:branch/get-all", getStockByBranch);
 
-// Manually adjust the quantity of a stock item
-StockRoutes.put("/:branch/adjust", authenticateToken, adjustStock);
+// Adjust a specific stock item's quantity
+StockRoutes.put("/adjust", authenticateToken, adjustStock);
+
+// Get movement history for a single stock item
+StockRoutes.get("/:stockId/movements", authenticateToken, getStockMovements);
+
+// Update the stock alert level for an ingredient
+StockRoutes.put("/ingredient/:ingredientId/alert", authenticateToken, updateStockAlert);
 
 export default StockRoutes;
