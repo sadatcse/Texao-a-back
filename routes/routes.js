@@ -26,7 +26,7 @@ import IngredientRoutes from "../app/modules/Ingredient/Ingredient.routes.js";
 import StockRoutes from "../app/modules/Stock/Stock.routes.js";
 import PurchaseRoutes from "../app/modules/Purchase/Purchase.routes.js";
 import ReviewRoutes from "../app/modules/Review/Review.routes.js"; 
-
+import PredictionRoutes from "../app/modules/Prediction/Prediction.routes.js"; 
 // Other Imports
 import { getImageUrl } from "../config/space.js";
 import { sendTestEmail } from "../controllers/emailController.js";
@@ -67,11 +67,12 @@ routes.use("/purchase", PurchaseRoutes);
 routes.use("/reports", ReportRoutes);
 routes.use("/recipes", RecipeRoutes);
 routes.use("/review", ReviewRoutes);
-
+routes.use("/prediction", PredictionRoutes);
 // Other Routes
 routes.post("/send-email", sendTestEmail);
 routes.post("/get-image-url", getImageUrl);
 routes.get("/superadmin/dashboard", getSuperAdminDashboard);
 routes.get("/branch", getAllBranches);
+
 
 export default routes;
