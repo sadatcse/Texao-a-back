@@ -121,19 +121,154 @@ export async function logoutUser(req, res) {
   }
 }
 
-// Update a user by ID
-export async function updateUser(req, res) {
-  const id = req.params.id;
-  const userData = req.body;
+export async function updateUserProfile(req, res) {
   try {
-    const result = await User.findByIdAndUpdate(id, userData, { new: true });
-    if (result) {
-      res.status(200).json(result);
-    } else {
-      res.status(404).json({ message: "User not found" });
+
+    const id = req.user.id;
+    const { name, email, photo } = req.body;
+    const allowedUpdates = {};
+    if (name) allowedUpdates.name = name;
+    if (email) allowedUpdates.email = email;
+    if (typeof photo !== 'undefined') {
+        allowedUpdates.photo = photo;
     }
+
+    if (Object.keys(allowedUpdates).length === 0) {
+      return res.status(400).json({ message: "No update data provided." });
+    }
+    const updatedUser = await User.findByIdAndUpdate(id, allowedUpdates, { new: true })
+      .select("-password"); 
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(updatedUser);
+
   } catch (err) {
-    res.status(500).send({ error: err.message });
+    console.error("Error updating user profile:", err.message);
+    res.status(500).send({ error: "Server error while updating profile." });
+  }
+}
+
+
+export async function updateUser(req, res) {
+  try {
+    const currentUser = req.user; 
+    const targetUserId = req.params.id; 
+    const updates = req.body;
+
+    // --- ✅ SUPER ADMIN LOGIC ---
+    // If the person making the request is a superadmin, bypass all other checks.
+    if (currentUser.role === 'superadmin') {
+      // Hash password if it's being changed
+      if (updates.password && updates.password.trim() !== "") {
+          const salt = await bcrypt.genSalt(10);
+          updates.password = await bcrypt.hash(updates.password, salt);
+      } else {
+          delete updates.password;
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(targetUserId, updates, { new: true }).select("-password");
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found." });
+      }
+      // Successfully updated, end the function here.
+      return res.status(200).json(updatedUser);
+    }
+
+
+    // ---  पुराने नियम (OLD RULES FOR ADMIN & MANAGER) ---
+    const targetUser = await User.findById(targetUserId);
+    if (!targetUser) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // Security: Prevent anyone other than a superadmin from editing another superadmin
+    if (targetUser.role === 'superadmin') {
+        return res.status(403).json({ message: "Forbidden: Cannot modify a superadmin account." });
+    }
+
+    // Security: Prevent a Manager from editing an Admin's profile
+    if (currentUser.role === 'manager' && targetUser.role === 'admin') {
+      return res.status(403).json({ message: "Forbidden: Managers cannot edit administrator accounts." });
+    }
+
+    // Security: Prevent a Manager from assigning the 'admin' role
+    if (updates.role && updates.role === 'admin' && currentUser.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden: You do not have permission to assign the admin role." });
+    }
+
+    // Handle Password Reset for admins/managers
+    if (updates.password && updates.password.trim() !== "") {
+        const salt = await bcrypt.genSalt(10);
+        updates.password = await bcrypt.hash(updates.password, salt);
+    } else {
+        delete updates.password;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(targetUserId, updates, { new: true })
+      .select("-password");
+
+    res.status(200).json(updatedUser);
+
+  } catch (err) {
+    console.error("Error in updateUser function:", err);
+    res.status(500).send({ error: "An unexpected server error occurred." });
+  }
+}
+
+export async function getSuperAdminUsers(req, res) {
+  try {
+    const { 
+        page = 1, 
+        limit = 10, 
+        branch = '', 
+        role = '',
+        status = '',
+        search = ''
+    } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // --- Build Filter Query ---
+    const query = {};
+
+    if (branch) query.branch = branch;
+    if (role) query.role = role;
+    if (status) query.status = status;
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    // --- Execute Queries ---
+    const [users, totalUsers] = await Promise.all([
+        User.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .select("-password"), // Never send passwords to the client
+        User.countDocuments(query)
+    ]);
+      
+    res.status(200).json({
+      data: users,
+      pagination: {
+        totalDocuments: totalUsers,
+        totalPages: Math.ceil(totalUsers / limitNum),
+        currentPage: pageNum,
+        limit: limitNum,
+      },
+    });
+
+  } catch (err) {
+    res.status(500).send({ error: "Server error fetching users: " + err.message });
   }
 }
 

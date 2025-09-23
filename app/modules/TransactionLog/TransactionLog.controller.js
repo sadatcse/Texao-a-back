@@ -11,7 +11,75 @@ export async function getAllTransactionLogs(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
+export async function getSuperAdminTransactionLogs(req, res) {
+  try {
+    const { 
+        page = 1, 
+        limit = 15, 
+        branch = '', 
+        search = '',
+        startDate = '',
+        endDate = '',
+        status = 'failed', // Default to 'failed' to act as an "Error Log"
+        transactionCode = '',
+        transactionType = ''
+    } = req.query;
 
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // --- Build Filter Query ---
+    const query = {};
+
+    if (branch) query.branch = branch;
+    if (status) query.status = status;
+    if (transactionCode) query.transactionCode = transactionCode;
+    if (transactionType) query.transactionType = { $regex: transactionType, $options: 'i' };
+
+    if (search) {
+      query.$or = [
+        { userName: { $regex: search, $options: 'i' } },
+        { userEmail: { $regex: search, $options: 'i' } },
+        { details: { $regex: search, $options: 'i' } },
+        { Message: { $regex: search, $options: 'i' } },
+      ];
+    }
+    
+    // Date Filtering Logic
+    if (startDate && endDate) {
+      query.transactionTime = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    } else if (startDate) {
+      query.transactionTime = { $gte: new Date(startDate) };
+    } else if (endDate) {
+      query.transactionTime = { $lte: new Date(endDate) };
+    } else if (status === 'failed') { // Only default to this month if we are looking at errors
+      const startOfMonth = moment().startOf('month').toDate();
+      const endOfMonth = moment().endOf('month').toDate();
+      query.transactionTime = { $gte: startOfMonth, $lte: endOfMonth };
+    }
+
+    // --- Execute Queries ---
+    const totalLogs = await TransactionLog.countDocuments(query);
+    const logs = await TransactionLog.find(query)
+      .sort({ transactionTime: -1 })
+      .skip(skip)
+      .limit(limitNum);
+      
+    res.status(200).json({
+      data: logs,
+      pagination: {
+        totalDocuments: totalLogs,
+        totalPages: Math.ceil(totalLogs / limitNum),
+        currentPage: pageNum,
+        limit: limitNum,
+      },
+    });
+
+  } catch (err) {
+    res.status(500).send({ error: "Server error fetching transaction logs: " + err.message });
+  }
+}
 // Get paginated transaction logs
 export async function getPaginatedTransactionLogs(req, res) {
   const { page = 1, limit = 10 } = req.query;

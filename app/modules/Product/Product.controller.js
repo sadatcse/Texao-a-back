@@ -82,6 +82,19 @@ export async function getProductById(req, res) {
   }
 }
 
+export async function getProductCategoriesByBranch(req, res) {
+  try {
+    const { branch } = req.params;
+    if (!branch) {
+      return res.status(400).json({ message: "A branch name is required." });
+    }
+    // Find all unique 'category' values within documents that match the branch
+    const categories = await Product.distinct('category', { branch });
+    res.status(200).json(categories);
+  } catch (err) {
+    res.status(500).send({ error: "Server error fetching product categories." });
+  }
+}
 // Create a new product
 export async function createProduct(req, res) {
   try {
@@ -93,6 +106,56 @@ export async function createProduct(req, res) {
   }
 }
 
+export async function getSuperAdminProducts(req, res) {
+  try {
+    const { 
+        page = 1, 
+        limit = 10, 
+        branch = '', 
+        category = '',
+        status = '',
+        search = ''
+    } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // --- Build Filter Query ---
+    const query = {};
+
+    if (branch) query.branch = branch;
+    if (category) query.category = category;
+    if (status) query.status = status;
+    if (search) {
+      query.productName = { $regex: search, $options: 'i' };
+    }
+
+    // --- Execute Queries Concurrently ---
+    const [products, totalProducts, categories] = await Promise.all([
+        Product.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum),
+        Product.countDocuments(query),
+        Product.distinct('category', query.branch ? { branch: query.branch } : {}) // Get categories relevant to the selected branch
+    ]);
+      
+    res.status(200).json({
+      data: products,
+      categories, // Send available categories for filtering
+      pagination: {
+        totalDocuments: totalProducts,
+        totalPages: Math.ceil(totalProducts / limitNum),
+        currentPage: pageNum,
+        limit: limitNum,
+      },
+    });
+
+  } catch (err) {
+    res.status(500).send({ error: "Server error fetching products: " + err.message });
+  }
+}
 // Remove a product by ID
 export async function removeProduct(req, res) {
   const id = req.params.id;

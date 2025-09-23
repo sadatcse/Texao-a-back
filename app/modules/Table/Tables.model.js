@@ -5,7 +5,7 @@ const TableSchema = Schema(
   {
     tableName: {
       type: String,
-      unique: true,
+          required: true, // It's better to require it.
       default: function () {
         return `Table-${Math.floor(1000 + Math.random() * 9000)}`;
       },

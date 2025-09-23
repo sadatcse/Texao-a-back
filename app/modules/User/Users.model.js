@@ -25,7 +25,7 @@ const UserSchema = Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "user", "manager"], // Adjust roles as per your needs
+   enum: ["superadmin", "admin", "user", "manager"], 
       default: "user",
     },
     counter: {

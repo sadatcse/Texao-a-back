@@ -5,7 +5,7 @@ import Vendor from "../Vendor/Vendor.model.js";
 import Expense from "../Expense/Expense.model.js";
 import mongoose from "mongoose";
 import StockMovement from "./../Stock/StockMovement.model.js";
-
+import VendorPayment from "../VendorPayment/VendorPayment.model.js"; 
 export async function createPurchase(req, res) {
     try {
         const purchaseData = req.body;
@@ -67,6 +67,92 @@ export async function createPurchase(req, res) {
         res.status(500).send({ error: err.message });
     }
 }
+
+export const getVendorLedger = async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    const purchases = await Purchase.find({ vendor: vendorId }).lean();
+    const payments = await VendorPayment.find({ vendor: vendorId }).lean();
+
+    const purchaseTransactions = purchases.map(p => ({
+      date: p.purchaseDate,
+      type: 'Purchase',
+      description: `Invoice #${p.invoiceNumber}`,
+      debit: p.grandTotal,
+      credit: 0,
+      reference: p._id,
+    }));
+    
+    const paymentTransactions = payments.map(p => ({
+      date: p.paymentDate,
+      type: 'Payment',
+      description: `Payment via ${p.paymentMethod}`,
+      debit: 0,
+      credit: p.amountPaid,
+      reference: p._id,
+    }));
+
+    const combined = [...purchaseTransactions, ...paymentTransactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    let runningBalance = 0;
+    const ledger = combined.map(t => {
+      runningBalance += t.debit - t.credit;
+      return { ...t, balance: runningBalance };
+    });
+
+    res.status(200).json({ ledger, finalBalance: runningBalance });
+
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch vendor ledger.", error: error.message });
+  }
+};
+
+// New function to get all vendors with their outstanding balances
+export const getVendorsWithBalances = async (req, res) => {
+  try {
+    const { branch } = req.params;
+    
+    const balances = await Purchase.aggregate([
+      { $match: { branch: branch } },
+      {
+        $group: {
+          _id: "$vendor",
+          totalBilled: { $sum: "$grandTotal" },
+          totalPaid: { $sum: "$paidAmount" },
+        }
+      },
+      {
+        $lookup: {
+          from: "vendors", // the name of the vendors collection
+          localField: "_id",
+          foreignField: "_id",
+          as: "vendorInfo"
+        }
+      },
+      { $unwind: "$vendorInfo" },
+      {
+        $project: {
+          _id: 0,
+          vendorId: "$_id",
+          vendorName: "$vendorInfo.vendorName",
+          primaryPhone: "$vendorInfo.primaryPhone",
+          totalBilled: 1,
+          totalPaid: 1,
+          dueBalance: { $subtract: ["$totalBilled", "$totalPaid"] }
+        }
+      },
+      { $match: { dueBalance: { $gt: 0 } } }, // Only show vendors with a balance due
+      { $sort: { vendorName: 1 } }
+    ]);
+
+    res.status(200).json(balances);
+
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch vendor balances.", error: error.message });
+  }
+};
+
 
 export async function updatePurchase(req, res) {
     const id = req.params.id;
@@ -199,21 +285,95 @@ export async function removePurchase(req, res) {
 }
 
 export async function getPurchasesByBranch(req, res) {
-  const branch = req.params.branch;
-  try {
-    const purchases = await Purchase.find({ branch })
-      .populate({
-        path: 'items.ingredient',
-        populate: {
-            path: 'category',
-            model: 'IngredientCategory'
+    try {
+        const { branch } = req.params;
+        let { fromDate, toDate, search, page = 1, limit = 10 } = req.query;
+
+        const pageNumber = parseInt(page);
+        const limitNumber = parseInt(limit);
+        const skip = (pageNumber - 1) * limitNumber;
+
+        // --- Date Filtering: Default to current month if no dates are provided ---
+        if (!fromDate && !toDate) {
+            const now = new Date();
+            fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            toDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         }
-      })
-      .populate("vendor");
-    res.status(200).json(purchases);
-  } catch (err) {
-    res.status(500).send({ error: err.message });
-  }
+
+        // Build the core match query
+        const matchQuery = { branch: branch };
+        if (fromDate || toDate) {
+            matchQuery.purchaseDate = {};
+            if (fromDate) matchQuery.purchaseDate.$gte = new Date(fromDate);
+            if (toDate) {
+                const endDate = new Date(toDate);
+                endDate.setHours(23, 59, 59, 999);
+                matchQuery.purchaseDate.$lte = endDate;
+            }
+        }
+        
+        // Use Aggregation Pipeline for powerful searching and pagination
+        let pipeline = [
+            { $match: matchQuery },
+            { $lookup: { from: "vendors", localField: "vendor", foreignField: "_id", as: "vendor" } },
+            { $unwind: "$vendor" }
+        ];
+
+        // Add search query if provided
+        if (search) {
+            pipeline.push({
+                $match: {
+                    $or: [
+                        { "vendor.vendorName": { $regex: search, $options: "i" } },
+                        { invoiceNumber: { $regex: search, $options: "i" } }
+                    ]
+                }
+            });
+        }
+        
+        // Add sorting
+        pipeline.push({ $sort: { purchaseDate: -1 } });
+
+        // Add pagination and data fetching in one go
+        pipeline.push({
+            $facet: {
+                data: [
+                    { $skip: skip },
+                    { $limit: limitNumber },
+                    // Populate ingredient details within the aggregation
+                    { $unwind: "$items" },
+                    { $lookup: { from: "ingredients", localField: "items.ingredient", foreignField: "_id", as: "items.ingredient" } },
+                    { $unwind: "$items.ingredient" },
+                    { $lookup: { from: "ingredientcategories", localField: "items.ingredient.category", foreignField: "_id", as: "items.ingredient.category" } },
+                    { $unwind: { path: "$items.ingredient.category", preserveNullAndEmptyArrays: true } },
+                    { $group: {
+                        _id: "$_id",
+                        // Reconstruct the root document
+                        root: { $first: "$$ROOT" },
+                        // Collect the populated items back into an array
+                        items: { $push: "$items" }
+                    }},
+                    { $replaceRoot: { newRoot: { $mergeObjects: ["$root", { items: "$items" }] } } }
+                ],
+                pagination: [
+                    { $count: "totalDocuments" }
+                ]
+            }
+        });
+
+        const result = await Purchase.aggregate(pipeline);
+        const purchases = result[0].data;
+        const totalDocuments = result[0].pagination[0]?.totalDocuments || 0;
+        const totalPages = Math.ceil(totalDocuments / limitNumber);
+
+        res.status(200).json({
+            data: purchases,
+            pagination: { currentPage: pageNumber, totalPages, totalDocuments, limit: limitNumber }
+        });
+
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 }
 
 export async function getPurchaseAnalysis(req, res) {

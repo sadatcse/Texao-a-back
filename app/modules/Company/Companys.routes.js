@@ -5,6 +5,7 @@ import {
   getCompanyById,
   updateCompany,
   removeCompany,
+  getSuperAdminCompanies,
   getCompaniesByBranch,
 } from "./Companys.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js"; 
@@ -18,5 +19,6 @@ CompanyRoutes.post("/post", authenticateToken, createCompany);
 CompanyRoutes.put("/update/:id", authenticateToken, updateCompany);
 CompanyRoutes.delete("/delete/:id", authenticateToken, removeCompany);
 CompanyRoutes.get("/branch/:branch", authenticateToken, getCompaniesByBranch);
+CompanyRoutes.get("/superadmin/all", authenticateToken, /* adminOnly, */ getSuperAdminCompanies);
 
 export default CompanyRoutes;

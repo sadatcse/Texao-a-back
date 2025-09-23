@@ -6,6 +6,7 @@ import {
   getCategoryById,
   removeCategory,
   updateCategory,
+  getSuperAdminCategories,
   getActiveCategoriesByBranch,
 } from "./Catagories.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js"; 
@@ -20,5 +21,6 @@ CategoryRoutes.post("/post", authenticateToken, createCategory);
 CategoryRoutes.delete("/delete/:id", authenticateToken, removeCategory);
 CategoryRoutes.put("/update/:id", authenticateToken, updateCategory);
 CategoryRoutes.get("/:branch/active", authenticateToken, getActiveCategoriesByBranch);
+CategoryRoutes.get("/superadmin/all", authenticateToken, /* adminOnly, */ getSuperAdminCategories);
 
 export default CategoryRoutes;

@@ -10,7 +10,52 @@ export async function getAllCompanies(req, res) {
   }
 }
 
-// Get company by ID
+export async function getSuperAdminCompanies(req, res) {
+  try {
+    const { 
+        page = 1, 
+        limit = 10, 
+        search = ''
+    } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // --- Build Filter Query ---
+    const query = {};
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { branch: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    // --- Execute Queries ---
+    const [companies, totalCompanies] = await Promise.all([
+        Company.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum),
+        Company.countDocuments(query)
+    ]);
+      
+    res.status(200).json({
+      data: companies,
+      pagination: {
+        totalDocuments: totalCompanies,
+        totalPages: Math.ceil(totalCompanies / limitNum),
+        currentPage: pageNum,
+        limit: limitNum,
+      },
+    });
+
+  } catch (err) {
+    res.status(500).send({ error: "Server error fetching company data: " + err.message });
+  }
+}
 export async function getCompanyById(req, res) {
   const id = req.params.id;
   try {

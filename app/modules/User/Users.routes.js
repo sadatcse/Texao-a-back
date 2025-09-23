@@ -7,7 +7,9 @@ import {
   removeUser,
   updateUser,
   loginUser,
+  updateUserProfile,
   logoutUser,
+  getSuperAdminUsers,
   changePassword,
 } from "./Users.controller.js";
 import jwt from "jsonwebtoken";
@@ -30,6 +32,11 @@ UserRoutes.get("/get-id/:id", authenticateToken, getUserById);
 UserRoutes.post("/logout", authenticateToken, logoutUser);
 UserRoutes.delete("/delete/:id", authenticateToken, removeUser);
 UserRoutes.put("/update/:id", authenticateToken, updateUser);
+
+UserRoutes.put("/updateuser/:id", authenticateToken, updateUserProfile);
+
+UserRoutes.get("/superadmin/all", authenticateToken, /* adminOnly, */ getSuperAdminUsers);
+
 UserRoutes.put("/change-password", authenticateToken, changePassword);
 
 UserRoutes.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

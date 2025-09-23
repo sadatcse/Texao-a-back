@@ -54,41 +54,38 @@ export async function updateInvoice(req, res) {
             return res.status(404).json({ message: "Invoice not found" });
         }
 
-        // Store the old values before they are changed
+        // Store old values for comparison after recalculation
         const oldTotalAmount = invoice.totalAmount;
         const oldEarnedPoints = invoice.earnedPoints;
 
         // 2. Apply updates from the request body to the document
-        // This marks the 'products' and 'discount' fields as modified
         Object.assign(invoice, updates);
 
-        // 3. Save the invoice. This is the KEY step that triggers the pre('save') hook.
-        // The hook will now recalculate subtotal, vat, totalAmount, etc., automatically.
+        // 3. Save the invoice, which triggers the pre('save') hook for recalculations
         const updatedInvoice = await invoice.save();
 
-        // 4. Handle the customer profile update AFTER the invoice has been saved
-        // Now we have the correct, newly calculated totals.
+        // 4. Handle the customer profile update after the invoice has been saved
         if (invoice.customerId) {
             const customer = await Customer.findById(invoice.customerId);
             if (customer) {
                 const newTotalAmount = updatedInvoice.totalAmount;
-                const newEarnedPoints = updatedInvoice.earnedPoints; // The hook calculates this now
+                const newEarnedPoints = updatedInvoice.earnedPoints;
 
                 const amountDifference = newTotalAmount - oldTotalAmount;
                 const pointsDifference = newEarnedPoints - oldEarnedPoints;
 
-                // Update and save the customer
                 customer.totalAmountSpent += amountDifference;
                 customer.currentPoints += pointsDifference;
                 await customer.save();
             }
         }
         
-        // 5. Emit socket event and send the final response
-        if (updatedInvoice && updatedInvoice.branch) {
-            req.io.to(updatedInvoice.branch).emit('kitchen-update');
+        // 5. Emit the socket event WITH the updated invoice object as the payload
+        if (req.io && updatedInvoice && updatedInvoice.branch) {
+            req.io.to(updatedInvoice.branch).emit('kitchen-update', updatedInvoice);
         }
 
+        // 6. Send the final HTTP response
         res.status(200).json(updatedInvoice);
 
     } catch (err) {
@@ -334,11 +331,9 @@ export async function getSalesByDateRange(req, res) {
       return res.status(400).json({ error: "Start date and end date are required" });
     }
 
-    // Correctly format dates to cover the entire day
     const startOfDay = moment(startDate).startOf("day").toDate();
     const endOfDay = moment(endDate).endOf("day").toDate();
     
-    // Fetch invoices within the date range
     const invoices = await Invoice.find({
       branch,
       dateTime: {
@@ -351,7 +346,6 @@ export async function getSalesByDateRange(req, res) {
       return res.status(200).json([]);
     }
 
-    // Aggregate product data from all invoices
     const productSales = {};
 
     invoices.forEach(invoice => {
@@ -360,7 +354,7 @@ export async function getSalesByDateRange(req, res) {
           productSales[prod.productName] = {
             productName: prod.productName,
             qty: 0,
-            rate: prod.rate, // Use the rate from the first encountered product
+            rate: prod.rate,
           };
         }
         productSales[prod.productName].qty += prod.qty;
@@ -374,9 +368,11 @@ export async function getSalesByDateRange(req, res) {
         filteredProducts = filteredProducts.filter(p => p.productName === product);
     }
     
-    // Filter by category if specified (and product is not already singled out)
+    // Filter by category if specified
     if (category && category !== "All") {
-        const productsInCategory = await Product.find({ categoryName: category, branch: branch }).select('productName');
+        // --- THIS IS THE CORRECTED LINE ---
+        // The field in the Product model is 'category', not 'categoryName'.
+        const productsInCategory = await Product.find({ category: category, branch: branch }).select('productName');
         const productNamesInCategory = productsInCategory.map(p => p.productName);
         
         filteredProducts = filteredProducts.filter(prod =>

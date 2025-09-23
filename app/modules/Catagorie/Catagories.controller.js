@@ -83,6 +83,50 @@ export async function getActiveCategoriesByBranch(req, res) {
   }
 }
 
+export async function getSuperAdminCategories(req, res) {
+  try {
+    const { 
+        page = 1, 
+        limit = 10, 
+        branch = '', 
+        isActive = '',
+        search = ''
+    } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // --- Build Filter Query ---
+    const query = {};
+    if (branch) query.branch = branch;
+    if (search) query.categoryName = { $regex: search, $options: 'i' };
+    if (isActive) query.isActive = isActive === 'true'; // Convert string 'true'/'false' to boolean
+
+    // --- Execute Queries ---
+    const [categories, totalCategories] = await Promise.all([
+        Category.find(query)
+            .sort({ branch: 1, serial: 1 }) // Sort by branch, then by serial
+            .skip(skip)
+            .limit(limitNum),
+        Category.countDocuments(query)
+    ]);
+      
+    res.status(200).json({
+      data: categories,
+      pagination: {
+        totalDocuments: totalCategories,
+        totalPages: Math.ceil(totalCategories / limitNum),
+        currentPage: pageNum,
+        limit: limitNum,
+      },
+    });
+
+  } catch (err) {
+    res.status(500).send({ error: "Server error fetching categories: " + err.message });
+  }
+}
+
 // Update a category by ID
 export async function updateCategory(req, res) {
   const id = req.params.id;

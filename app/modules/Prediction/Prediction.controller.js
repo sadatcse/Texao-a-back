@@ -2,7 +2,8 @@ import Invoice from "../Invoice/Invoices.model.js";
 import Review from "../Review/Review.model.js";
 import moment from 'moment-timezone';
 import { generateText } from "../../../config/utils/geminiService.js";
-
+import Recipe from "../Recipe/Recipe.model.js";
+import Stock from "../Stock/Stock.model.js";
 /**
  * Statistical Prediction based on historical day-of-week data.
  */
@@ -211,6 +212,85 @@ export async function getAiMenuSuggestion(req, res) {
 /**
  * AI-Powered Customer Review Summary using Gemini
  */
+
+export async function getAiPurchaseSuggestion(req, res) {
+    const { branch } = req.params;
+    const analysisDays = 30; // Analyze the last 30 days of sales
+
+    try {
+        // Step 1: Calculate total ingredient usage based on sales in the last 30 days
+        const ingredientUsage = await Invoice.aggregate([
+            // Match recent invoices
+            { $match: { branch, dateTime: { $gte: new Date(Date.now() - analysisDays * 24 * 60 * 60 * 1000) } } },
+            { $unwind: "$products" },
+            // Group to sum up total quantity sold for each product
+            { $group: { _id: "$products.productId", totalSold: { $sum: "$products.qty" } } },
+            // Find the recipe for each sold product
+            { $lookup: { from: "recipes", localField: "_id", foreignField: "productId", as: "recipe" } },
+            { $unwind: "$recipe" },
+            // Unwind the ingredients from the recipe
+            { $unwind: "$recipe.ingredients" },
+            // Group by ingredient to calculate total consumption
+            {
+                $group: {
+                    _id: "$recipe.ingredients.ingredientId",
+                    name: { $first: "$recipe.ingredients.ingredientName" },
+                    unit: { $first: "$recipe.ingredients.unit" },
+                    totalConsumed: { $sum: { $multiply: ["$totalSold", "$recipe.ingredients.quantity"] } }
+                }
+            }
+        ]);
+
+        if (ingredientUsage.length === 0) {
+            return res.status(200).json({ suggestions: [], message: "Not enough sales data to generate purchase suggestions." });
+        }
+
+        // Step 2: Get current stock levels for all ingredients
+        const currentStockLevels = await Stock.find({ branch });
+        const stockMap = new Map(currentStockLevels.map(item => [item.ingredient.toString(), item.quantityInStock]));
+
+        // Step 3: Calculate days of stock remaining for each consumed ingredient
+        const urgentItems = ingredientUsage.map(item => {
+            const currentStock = stockMap.get(item._id.toString()) || 0;
+            const averageDailyUsage = item.totalConsumed / analysisDays;
+            const daysRemaining = averageDailyUsage > 0 ? currentStock / averageDailyUsage : Infinity;
+            return {
+                name: item.name,
+                unit: item.unit,
+                currentStock: parseFloat(currentStock.toFixed(2)),
+                averageDailyUsage: parseFloat(averageDailyUsage.toFixed(2)),
+                daysRemaining: parseFloat(daysRemaining.toFixed(1))
+            };
+        })
+        .filter(item => item.daysRemaining < 7) // Filter for items that will run out in the next week
+        .sort((a, b) => a.daysRemaining - b.daysRemaining); // Sort by most urgent
+
+        if (urgentItems.length === 0) {
+            return res.status(200).json({ suggestions: [], message: "Inventory levels look healthy! No urgent purchases needed." });
+        }
+        
+        // Step 4: Send the most urgent items to Gemini for a smart suggestion
+        const dataForAi = JSON.stringify(urgentItems.slice(0, 7)); // Send top 7 most urgent items
+        const fullPrompt = `
+            You are an expert inventory manager for a restaurant. Based on the following data, which shows ingredients that are predicted to run out in less than 7 days, please provide a purchase suggestion list.
+
+            DATA: ${dataForAi}
+
+            For each ingredient, provide a "suggestedPurchaseQty" (a sensible restock amount for a restaurant, considering its daily usage) and a brief "justification" for that amount.
+
+            Format the response as a valid JSON array of objects only. Each object must have keys: "name", "currentStock", "unit", "daysRemaining", "suggestedPurchaseQty", and "justification". Do not include any text, markdown, or explanations outside of the JSON array.
+        `;
+
+        const suggestionText = await generateText(fullPrompt);
+        const cleanedJson = suggestionText.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        res.status(200).json({ suggestions: JSON.parse(cleanedJson) });
+
+    } catch (error) {
+        console.error("Error generating AI purchase suggestion:", error);
+        res.status(500).json({ error: "Failed to generate AI purchase suggestion." });
+    }
+}
 export async function getAiReviewSummary(req, res) {
     const { branch } = req.params;
 

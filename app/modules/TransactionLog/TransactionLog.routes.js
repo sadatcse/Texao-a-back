@@ -4,6 +4,7 @@ import {
   getAllTransactionLogs,
   getTransactionLogById,
   removeTransactionLog,
+  getSuperAdminTransactionLogs,
   getPaginatedTransactionLogs,
   getTransactionLogsByBranch,
 } from "./TransactionLog.controller.js";
@@ -18,5 +19,6 @@ TransactionLogRoutes.get("/:branch/get-all", authenticateToken, getTransactionLo
 TransactionLogRoutes.get("/get-id/:id", authenticateToken, getTransactionLogById);
 TransactionLogRoutes.post("/create", authenticateToken, createTransactionLog);
 TransactionLogRoutes.delete("/delete/:id", authenticateToken, removeTransactionLog);
+TransactionLogRoutes.get("/superadmin/all", authenticateToken, /* adminOnly, */ getSuperAdminTransactionLogs);
 
 export default TransactionLogRoutes;

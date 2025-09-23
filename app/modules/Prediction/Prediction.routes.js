@@ -4,6 +4,7 @@ import {
     getAiInsights, 
     getAiSalesForecast,
     getAiMenuSuggestion,
+    getAiPurchaseSuggestion,
     getAiReviewSummary
 } from "./Prediction.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js";
@@ -22,6 +23,7 @@ PredictionRoutes.get("/:branch/sales-forecast", authenticateToken, getAiSalesFor
 PredictionRoutes.get("/:branch/menu-suggestion", authenticateToken, getAiMenuSuggestion);
 
 PredictionRoutes.get("/:branch/review-summary", authenticateToken, getAiReviewSummary);
+PredictionRoutes.get("/:branch/purchase-suggestion", authenticateToken, getAiPurchaseSuggestion);
 
 
 export default PredictionRoutes;

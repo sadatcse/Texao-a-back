@@ -5,6 +5,7 @@ import {
   getExpenseByBranch,
   getExpenseById,
   removeExpense,
+  getExpenseSummary,
   updateExpense,
 } from "./Expense.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js";
@@ -18,5 +19,6 @@ ExpenseRoutes.get("/get-id/:id", authenticateToken, getExpenseById);
 ExpenseRoutes.post("/post", authenticateToken, createExpense);
 ExpenseRoutes.delete("/delete/:id", authenticateToken, removeExpense);
 ExpenseRoutes.put("/update/:id", authenticateToken, updateExpense);
+ExpenseRoutes.get("/summary/:branch", authenticateToken, getExpenseSummary);
 
 export default ExpenseRoutes;

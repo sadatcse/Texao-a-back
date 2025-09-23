@@ -6,6 +6,7 @@ import {
   getVendorById,
   removeVendor,
   updateVendor,
+  getVendorLedger,
   getActiveVendorsByBranch,
 } from "./Vendor.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js";
@@ -20,5 +21,6 @@ VendorRoutes.post("/post", authenticateToken, createVendor);
 VendorRoutes.delete("/delete/:id", authenticateToken, removeVendor);
 VendorRoutes.put("/update/:id", authenticateToken, updateVendor);
 VendorRoutes.get("/:branch/active", authenticateToken, getActiveVendorsByBranch);
+VendorRoutes.get("/ledger/:vendorId", authenticateToken, getVendorLedger);
 
 export default VendorRoutes;

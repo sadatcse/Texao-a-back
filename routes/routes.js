@@ -33,6 +33,9 @@ import { sendTestEmail } from "../controllers/emailController.js";
 import transactionLogger from "../middleware/transactionLogger.js";
 import { getSuperAdminDashboard } from "../controllers/dashboardController.js";
 import { getAllBranches } from "../controllers/branchController.js";
+import VendorPaymentRoutes from '../app/modules/VendorPayment/VendorPayment.routes.js';
+import { authenticateToken } from "../middleware/authMiddleware.js";
+import { branchSetupWizard } from "../app/modules/Branch/branchSetup.controller.js"; 
 
 const routes = Router();
 
@@ -68,11 +71,14 @@ routes.use("/reports", ReportRoutes);
 routes.use("/recipes", RecipeRoutes);
 routes.use("/review", ReviewRoutes);
 routes.use("/prediction", PredictionRoutes);
+routes.use("/vendor-payment", VendorPaymentRoutes);
+routes.use("/wizard", VendorPaymentRoutes);
 // Other Routes
 routes.post("/send-email", sendTestEmail);
 routes.post("/get-image-url", getImageUrl);
 routes.get("/superadmin/dashboard", getSuperAdminDashboard);
 routes.get("/branch", getAllBranches);
+routes.post("/branch/setup-wizard", authenticateToken, /* adminOnly, */ branchSetupWizard);
 
 
 export default routes;

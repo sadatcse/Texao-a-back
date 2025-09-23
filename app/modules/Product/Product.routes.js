@@ -8,6 +8,8 @@ import {
     getProductsByCategoryAndBranch,
     updateProduct,
     getProductsByBranch,
+    getProductCategoriesByBranch,
+    getSuperAdminProducts,
     searchProductsByBranch // Import the new controller function
 } from "./Product.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js";
@@ -23,6 +25,8 @@ ProductRoutes.get("/get-id/:id", authenticateToken, getProductById);
 ProductRoutes.post("/post", authenticateToken, createProduct);
 ProductRoutes.delete("/delete/:id", authenticateToken, removeProduct);
 ProductRoutes.put("/update/:id", authenticateToken, updateProduct);
+ProductRoutes.get("/superadmin", authenticateToken, /* adminOnly, */ getSuperAdminProducts);
+ProductRoutes.get("/categories/:branch", authenticateToken, getProductCategoriesByBranch);
 
 // New route for searching products by branch
 ProductRoutes.get("/search", authenticateToken, searchProductsByBranch);
