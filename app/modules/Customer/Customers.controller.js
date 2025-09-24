@@ -19,7 +19,7 @@ export async function getCustomerByMobile(req, res) {
     const { mobile } = req.query;
     try {
         const customer = await Customer.find({ branch, mobile });
-        console.log(customer);
+   
         res.status(200).json(customer);
     } catch (err) {
         res.status(500).send({ error: err.message });

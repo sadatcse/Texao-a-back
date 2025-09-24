@@ -25,7 +25,6 @@ const UserSchema = Schema(
     },
     role: {
       type: String,
-   enum: ["superadmin", "admin", "user", "manager"], 
       default: "user",
     },
     counter: {

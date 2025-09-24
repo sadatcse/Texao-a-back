@@ -1,6 +1,9 @@
 import User from "./Users.model.js";
 import UserLog from "../UserLog/UserLog.model.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
+import bcrypt from "bcrypt";
+
 // Get all users
 export async function getAllUsers(req, res) {
   try {
@@ -151,6 +154,47 @@ export async function updateUserProfile(req, res) {
   }
 }
 
+export async function updateUserSimple(req, res) {
+  try {
+    const userId = req.params.id;
+    const updates = req.body;
+
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid or missing User ID." });
+    }
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "No data provided for update." });
+    }
+
+    // Check if email is being updated to a duplicate
+    if (updates.email) {
+      const existingUser = await User.findOne({ email: updates.email });
+      if (existingUser && existingUser._id.toString() !== userId) {
+        return res.status(400).json({ message: "Email already in use by another user." });
+      }
+    }
+
+    // Hash password if provided
+    if (updates.password && updates.password.trim() !== "") {
+      const salt = await bcrypt.genSalt(10);
+      updates.password = await bcrypt.hash(updates.password, salt);
+    } else {
+      delete updates.password;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    res.status(200).json(updatedUser);
+  } catch (err) {
+    console.error("Error in updateUserSimple:", err);
+    res.status(500).json({ error: "An unexpected server error occurred." });
+  }
+}
 
 export async function updateUser(req, res) {
   try {
@@ -272,8 +316,23 @@ export async function getSuperAdminUsers(req, res) {
   }
 }
 
+export async function getRolesByBranch(req, res) {
+  const { branch } = req.params;
+  try {
+
+    const roles = await User.distinct("role", {
+      branch: branch,
+      role: { $ne: "superadmin" } 
+    });
+    res.status(200).json(roles);
+  } catch (err) {
+    console.error("Error fetching roles by branch:", err);
+    res.status(500).send({ error: "Server error while fetching roles." });
+  }
+}
+
 export async function changePassword(req, res) {
-  const { userId } = req.user; // Assume userId is extracted from the authenticated token
+  const { userId } = req.user; 
   const { oldPassword, newPassword } = req.body;
 
   try {

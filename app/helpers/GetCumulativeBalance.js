@@ -95,7 +95,7 @@ export async function GetCumulativeBalance() {
     ) {
       const cumulativeBalance =
         transactionMonthlyIncome[0]?.total + invoiceMonthlyBalance[0]?.total;
-      console.log(cumulativeBalance, "cumulativeBalance");
+ 
       return { cumulativeBalance };
     } else {
       return { cumulativeBalance: 0 };

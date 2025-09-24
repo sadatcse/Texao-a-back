@@ -10,6 +10,8 @@ import {
   updateUserProfile,
   logoutUser,
   getSuperAdminUsers,
+  updateUserSimple,
+  getRolesByBranch,
   changePassword,
 } from "./Users.controller.js";
 import jwt from "jsonwebtoken";
@@ -35,33 +37,13 @@ UserRoutes.put("/update/:id", authenticateToken, updateUser);
 
 UserRoutes.put("/updateuser/:id", authenticateToken, updateUserProfile);
 
+UserRoutes.put("/updatea/:id", authenticateToken, updateUserSimple);
+
+
 UserRoutes.get("/superadmin/all", authenticateToken, /* adminOnly, */ getSuperAdminUsers);
 
 UserRoutes.put("/change-password", authenticateToken, changePassword);
 
-UserRoutes.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-
-// Google callback route
-UserRoutes.get('/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/login' }),
-  (req, res) => {
-    // Successful login, send the JWT token
-    const token = jwt.sign({ id: req.user._id, role: req.user.role }, 'secretKey', { expiresIn: '24h' });
-    res.status(200).json({ message: 'Google login successful', user: req.user, token });
-  }
-);
-
-// Facebook login route
-UserRoutes.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-
-// Facebook callback route
-UserRoutes.get('/facebook/callback', 
-  passport.authenticate('facebook', { failureRedirect: '/login' }),
-  (req, res) => {
-    // Successful login, send the JWT token
-    const token = jwt.sign({ id: req.user._id, role: req.user.role }, 'secretKey', { expiresIn: '24h' });
-    res.status(200).json({ message: 'Facebook login successful', user: req.user, token });
-  }
-);
+UserRoutes.get("/roles/:branch", authenticateToken, getRolesByBranch); 
 
 export default UserRoutes;

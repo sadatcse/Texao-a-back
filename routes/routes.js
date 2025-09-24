@@ -36,7 +36,7 @@ import { getAllBranches } from "../controllers/branchController.js";
 import VendorPaymentRoutes from '../app/modules/VendorPayment/VendorPayment.routes.js';
 import { authenticateToken } from "../middleware/authMiddleware.js";
 import { branchSetupWizard } from "../app/modules/Branch/branchSetup.controller.js"; 
-
+import UserRoleRoutes from "../app/modules/UserRole/UserRoles.routes.js";
 const routes = Router();
 
 // Middleware
@@ -59,7 +59,7 @@ routes.use("/customer", CustomerRoutes);
 routes.use("/transaction-logs", TransactionLogRoutes);
 routes.use("/reservation", TableReservationRoutes);
 routes.use("/tablecombine", TableCombine);
-
+routes.use("/userrole", UserRoleRoutes);
 // Inventory & Expense Routes
 routes.use("/expense", ExpenseRoutes);
 routes.use("/vendor", VendorRoutes);

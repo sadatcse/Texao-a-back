@@ -4,6 +4,7 @@ import TableReservation from "../TableReservation/TableReservation.model.js";
 import moment from "moment";
 
 export const getTableStatusByBranch = async (req, res) => {
+
   try {
     const { branch } = req.params;
     const now = new Date();

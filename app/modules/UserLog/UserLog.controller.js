@@ -12,12 +12,13 @@ export async function getAllUserLogs(req, res) {
 }
 
 export async function getPaginatedUserLogs(req, res) {
-  const { page = 1, limit = 10 } = req.query; // Default to page 1, 10 items per page
+  const { page = 1, limit = 10, branch } = req.query;
 
   try {
-    const totalLogs = await UserLog.countDocuments(); // Total count of logs
-    const logs = await UserLog.find()
-      .sort({ createdAt: -1 }) // Sort by latest
+    const filter = branch ? { branch: branch } : {};
+    const totalLogs = await UserLog.countDocuments(filter);
+    const logs = await UserLog.find(filter)
+      .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 

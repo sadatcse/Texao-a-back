@@ -3,8 +3,6 @@ import Permission from "./permission.model.js";
 export async function getPermissionsByRole(req, res) {
   const { role } = req.params;
   const { branch } = req.query;
-
-  console.log(branch, "branch", role, "role");
   try {
     const permissions = await Permission.find({ role, branch });
 

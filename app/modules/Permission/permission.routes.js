@@ -4,7 +4,7 @@ import {
   getPermissionsByRole,
   updatePermissions,
 } from "./permission.controller.js";
-import { authenticateToken } from "../../../middleware/authMiddleware.js"; 
+
 const permissionRoutes = Router();
 
 permissionRoutes.get("/:role", getPermissionsByRole);
