@@ -15,17 +15,16 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * @returns {Promise<string>} The generated text response.
  */
 export async function generateText(prompt) {
-  try {
-    // CORRECTED: Use a current and recommended model name
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); 
-    
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    return text;
-  } catch (error) {
-    console.error("Error generating text with Gemini:", error);
-    const errorMessage = error.response?.data?.error?.message || error.message;
-    throw new Error(`Failed to communicate with the AI model: ${errorMessage}`);
-  }
+    try {
+        // CORRECTED: Use a model compatible with the v1beta API endpoint.
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        return text;
+    } catch (error) {
+        console.error("Error generating text with Gemini:", error);
+        throw new Error(`Failed to communicate with the AI model: ${error.message}`);
+    }
 }
