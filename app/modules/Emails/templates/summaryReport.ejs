@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f5f5f7; color: #1d1d1f; margin: 0; padding: 20px; }
+        .container { max-width: 680px; margin: auto; background-color: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #d2d2d7; }
+        .header { text-align: center; border-bottom: 1px solid #e5e5e6; padding-bottom: 20px; margin-bottom: 20px; }
+        .logo { max-height: 60px; margin-bottom: 15px; }
+        h1 { font-size: 26px; color: #1d1d1f; margin: 0 0 5px 0; }
+        h2 { font-size: 18px; color: #1d1d1f; margin-top: 30px; margin-bottom: 15px; border-bottom: 2px solid #e5e5e6; padding-bottom: 5px; }
+        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; text-align: center; margin-bottom: 20px; }
+        .kpi-card { background-color: #f5f5f7; padding: 15px; border-radius: 8px; }
+        .kpi-card .value { font-size: 20px; font-weight: 600; color: #0071e3; margin: 0 0 5px 0; }
+        .kpi-card .label { font-size: 12px; color: #6e6e73; margin: 0; }
+        .kpi-card .growth { font-size: 12px; font-weight: 500; }
+        .positive { color: #30a46c; }
+        .negative { color: #e5484d; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .data-table th, .data-table td { text-align: left; padding: 10px; border-bottom: 1px solid #e5e5e6; }
+        .data-table th { color: #6e6e73; font-weight: normal; }
+        .data-table .align-right { text-align: right; font-weight: 600; }
+        .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #86868b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <% if (companyDetails.logo) { %>
+                <img src="<%= companyDetails.logo %>" alt="<%= companyDetails.name %> Logo" class="logo">
+            <% } %>
+            <h1><%= reportTitle %></h1>
+            <p><strong><%= companyDetails.name %> (<%= branchName %>)</strong></p>
+            <p><%= reportDateRange %></p>
+        </div>
+
+        <h2>Performance vs. Previous Period</h2>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <p class="value"><%= growth.totalSales.value.toFixed(2) %> Taka</p>
+                <p class="label">Total Sales</p>
+                <% if (growth.totalSales.growth !== 'N/A') { %>
+                    <p class="growth <%= parseFloat(growth.totalSales.growth) >= 0 ? 'positive' : 'negative' %>">
+                        <%= parseFloat(growth.totalSales.growth) >= 0 ? '▲' : '▼' %> <%= growth.totalSales.growth %>%
+                    </p>
+                <% } %>
+            </div>
+            <div class="kpi-card">
+                <p class="value"><%= growth.totalOrders.value %></p>
+                <p class="label">Total Orders</p>
+                <% if (growth.totalOrders.growth !== 'N/A') { %>
+                     <p class="growth <%= parseFloat(growth.totalOrders.growth) >= 0 ? 'positive' : 'negative' %>">
+                        <%= parseFloat(growth.totalOrders.growth) >= 0 ? '▲' : '▼' %> <%= growth.totalOrders.growth %>%
+                    </p>
+                <% } %>
+            </div>
+            <div class="kpi-card">
+                <p class="value"><%= growth.totalQuantity.value %></p>
+                <p class="label">Total Items Sold</p>
+                 <% if (growth.totalQuantity.growth !== 'N/A') { %>
+                     <p class="growth <%= parseFloat(growth.totalQuantity.growth) >= 0 ? 'positive' : 'negative' %>">
+                        <%= parseFloat(growth.totalQuantity.growth) >= 0 ? '▲' : '▼' %> <%= growth.totalQuantity.growth %>%
+                    </p>
+                <% } %>
+            </div>
+        </div>
+
+        <% if (topProducts && topProducts.length > 0) { %>
+            <h2>Top 10 Selling Items</h2>
+            <table class="data-table">
+                <% topProducts.forEach(item => { %>
+                    <tr>
+                        <td><%= item.name %></td>
+                        <td class="align-right"><%= item.quantity %> sold</td>
+                        <td class="align-right"><%= item.revenue.toFixed(2) %> Taka</td>
+                    </tr>
+                <% }); %>
+            </table>
+        <% } %>
+
+        <% if (orderTypeBreakdown && orderTypeBreakdown.length > 0) { %>
+            <h2>Sales by Order Type</h2>
+            <table class="data-table">
+                <% orderTypeBreakdown.forEach(type => { %>
+                    <tr>
+                        <th><%= type.name %></th>
+                        <td class="align-right"><%= type.revenue.toFixed(2) %> Taka (<%= type.orders %> orders)</td>
+                    </tr>
+                <% }); %>
+            </table>
+        <% } %>
+        
+        <% if (paymentMethodBreakdown && paymentMethodBreakdown.length > 0) { %>
+            <h2>Payment Methods</h2>
+            <table class="data-table">
+                <% paymentMethodBreakdown.forEach(method => { %>
+                    <tr>
+                        <th><%= method.name %></th>
+                        <td class="align-right"><%= method.revenue.toFixed(2) %> Taka (<%= method.orders %> orders)</td>
+                    </tr>
+                <% }); %>
+            </table>
+        <% } %>
+        
+        <% if (deliveryProviderBreakdown && deliveryProviderBreakdown.length > 0) { %>
+            <h2>Delivery Provider Sales</h2>
+            <table class="data-table">
+                <% deliveryProviderBreakdown.forEach(provider => { %>
+                    <tr>
+                        <th><%= provider.name %></th>
+                        <td class="align-right"><%= provider.revenue.toFixed(2) %> Taka (<%= provider.orders %> orders)</td>
+                    </tr>
+                <% }); %>
+            </table>
+        <% } %>
+
+        <div class="footer">
+            <p>This is an automated report from Teaxo POS.</p>
+        </div>
+    </div>
+</body>
+</html>

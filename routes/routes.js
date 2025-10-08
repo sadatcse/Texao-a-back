@@ -27,9 +27,9 @@ import StockRoutes from "../app/modules/Stock/Stock.routes.js";
 import PurchaseRoutes from "../app/modules/Purchase/Purchase.routes.js";
 import ReviewRoutes from "../app/modules/Review/Review.routes.js"; 
 import PredictionRoutes from "../app/modules/Prediction/Prediction.routes.js"; 
+import emailRoutes from "../app/modules/Emails/Email.routes.js"
 // Other Imports
 import { getImageUrl } from "../config/space.js";
-import { sendTestEmail } from "../controllers/emailController.js";
 import transactionLogger from "../middleware/transactionLogger.js";
 import { getSuperAdminDashboard } from "../controllers/dashboardController.js";
 import { getAllBranches } from "../controllers/branchController.js";
@@ -37,7 +37,7 @@ import VendorPaymentRoutes from '../app/modules/VendorPayment/VendorPayment.rout
 import { authenticateToken } from "../middleware/authMiddleware.js";
 import { branchSetupWizard } from "../app/modules/Branch/branchSetup.controller.js"; 
 import UserRoleRoutes from "../app/modules/UserRole/UserRoles.routes.js";
-
+import rolepermissionRoutes from "../app/modules/RolePermission/rolePermission.routes.js";
 
 const routes = Router();
 
@@ -75,12 +75,14 @@ routes.use("/review", ReviewRoutes);
 routes.use("/prediction", PredictionRoutes);
 routes.use("/vendor-payment", VendorPaymentRoutes);
 routes.use("/wizard", VendorPaymentRoutes);
+routes.use('/role-permissions', rolepermissionRoutes);
 // Other Routes
-routes.post("/send-email", sendTestEmail);
+
 routes.post("/get-image-url", getImageUrl);
 routes.get("/superadmin/dashboard", getSuperAdminDashboard);
 routes.get("/branch", getAllBranches);
 routes.post("/branch/setup-wizard", authenticateToken, /* adminOnly, */ branchSetupWizard);
+routes.use("/email",emailRoutes);
 
 
 export default routes;

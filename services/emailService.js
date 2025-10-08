@@ -1,61 +1,33 @@
-import net from "net";
-import tls from "tls";
-import dotenv from "dotenv";
+// services/emailService.js
+import nodemailer from 'nodemailer';
 
-dotenv.config();
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: parseInt(process.env.EMAIL_PORT, 10),
+  secure: process.env.EMAIL_PORT === '465',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
 
-const SMTP_HOST = process.env.SMTP_HOST;
-const SMTP_PORT = process.env.SMTP_PORT || 587;
-const SMTP_USER = process.env.SMTP_USER;
-const SMTP_PASS = process.env.SMTP_PASS;
+export const sendEmail = async ({ to, subject, html }) => {
+  try {
+    const mailOptions = {
+      from: `"Teaxo POS" <${process.env.EMAIL_USER}>`,
+      to: to,
+      subject: subject,
+      html: html,
+    };
 
-export async function sendEmail(to, subject, body, from = SMTP_USER) {
-  return new Promise((resolve, reject) => {
-    const socket = net.connect(SMTP_PORT, SMTP_HOST);
-
-    socket.on("error", (err) => {
-      reject(`Connection error: ${err.message}`);
-    });
-
-    socket.on("connect", () => {
-      const tlsSocket = tls.connect(
-        { socket, host: SMTP_HOST },
-        () => {
-          const commands = [
-            `EHLO ${SMTP_HOST}`,
-            `AUTH LOGIN`,
-            Buffer.from(SMTP_USER).toString("base64"),
-            Buffer.from(SMTP_PASS).toString("base64"),
-            `MAIL FROM:<${from}>`,
-            `RCPT TO:<${to}>`,
-            `DATA`,
-            `From: ${from}\r\nTo: ${to}\r\nSubject: ${subject}\r\n\r\n${body}\r\n.`,
-            `QUIT`,
-          ];
-
-          let i = 0;
-
-          const sendCommand = () => {
-            if (i < commands.length) {
-              tlsSocket.write(commands[i] + "\r\n");
-              i++;
-            } else {
-              tlsSocket.end();
-              resolve("Email sent successfully!");
-            }
-          };
-
-          tlsSocket.on("data", () => {
-            sendCommand();
-          });
-
-          tlsSocket.on("error", (err) => {
-            reject(`Error: ${err.message}`);
-          });
-
-          sendCommand();
-        }
-      );
-    });
-  });
-}
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent successfully to ${to}: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`❌ Failed to send email to ${to}:`, error);
+    throw error;
+  }
+};

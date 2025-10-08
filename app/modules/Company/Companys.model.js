@@ -16,6 +16,10 @@ const CompanySchema = Schema(
       required: [true, "Please provide the company email address"],
       unique: true,
     },
+       ownerEmail: {
+      type: String,
+      required: [true, "Please provide the owner's email address"],
+    },
     address: {
       type: String,
       required: [true, "Please provide the company address"],

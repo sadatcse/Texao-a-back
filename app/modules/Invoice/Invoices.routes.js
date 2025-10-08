@@ -94,4 +94,5 @@ InvoiceRoutes.get("/:branch/trending-orders", getTrendingProducts);
 InvoiceRoutes.get("/:branch/order-timings", getMonthlyOrderTimings);
 InvoiceRoutes.get("/:branch/sales", getSalesByDateRange);
 InvoiceRoutes.get("/:branch/kitchen", getKitchenOrdersByBranch);
+
 export default InvoiceRoutes;

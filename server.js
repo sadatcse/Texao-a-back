@@ -12,6 +12,7 @@ import { errorHandler } from "./middleware/errorMiddleware.js";
 import routes from "./routes/routes.js";
 import path from "path";
 import passport from "passport";
+import { initScheduledJobs } from './services/scheduler.js';
 
 // Load environment variables
 environment.config();
@@ -28,7 +29,7 @@ const server = http.createServer(app);
 // Attach Socket.IO to the HTTP server
 const io = new Server(server, {
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000', 'https://pos.teaxo.com.bd', 'http://pos.teaxo.com.bd', 'http://192.168.0.167:3000'],
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173','https://pos.chefsspecial.restaurant', 'http://localhost:3000', 'https://pos.teaxo.com.bd', 'http://pos.teaxo.com.bd', 'http://192.168.0.167:3000'],
     credentials: true,
   },
 });
@@ -114,4 +115,5 @@ app.use(errorHandler);
 server.listen(port, () => {
   console.log(`Server started at ${new Date()}`);
   console.log(`Server listening on port ${port}`);
+  initScheduledJobs();
 });
