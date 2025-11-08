@@ -5,6 +5,7 @@ import {
   getAddonById,
   updateAddon,
   removeAddon,
+  getPaginatedAddons,
   getAddonsByBranch,
 } from "./Addonss.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js"; 
@@ -27,5 +28,8 @@ AddonsRoutes.put("/update/:id", updateAddon);
 
 // Delete an addon by ID
 AddonsRoutes.delete("/delete/:id", removeAddon);
+
+AddonsRoutes.get("/paginate", getPaginatedAddons);
+
 
 export default AddonsRoutes;

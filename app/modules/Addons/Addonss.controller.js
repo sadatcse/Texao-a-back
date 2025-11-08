@@ -20,7 +20,30 @@ export async function getAddonsByBranch(req, res) {
     res.status(500).send({ error: err.message });
   }
 }
+export async function getPaginatedAddons(req, res) {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
+    const [result, totalAddons] = await Promise.all([
+      Addon.find().skip(skip).limit(limit).exec(),
+      Addon.countDocuments(),
+    ]);
+
+    const totalPages = Math.ceil(totalAddons / limit);
+
+    res.status(200).json({
+      data: result,
+      currentPage: page,
+      totalPages: totalPages,
+      totalItems: totalAddons,
+      pageSize: limit,
+    });
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
+}
 // Get addon by ID
 export async function getAddonById(req, res) {
   const id = req.params.id;
