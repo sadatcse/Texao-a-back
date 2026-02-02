@@ -9,7 +9,9 @@ import {
     updateProduct,
     getProductsByBranch,
     getProductCategoriesByBranch,
+    searchActiveProducts,
     getSuperAdminProducts,
+    bulkCreateProduct,
     searchProductsByBranch // Import the new controller function
 } from "./Product.controller.js";
 import { authenticateToken } from "../../../middleware/authMiddleware.js";
@@ -27,7 +29,8 @@ ProductRoutes.delete("/delete/:id", authenticateToken, removeProduct);
 ProductRoutes.put("/update/:id", authenticateToken, updateProduct);
 ProductRoutes.get("/superadmin", authenticateToken, /* adminOnly, */ getSuperAdminProducts);
 ProductRoutes.get("/categories/:branch", authenticateToken, getProductCategoriesByBranch);
-
+ProductRoutes.get("/search-active", authenticateToken, searchActiveProducts);
+ProductRoutes.post("/bulk-post", authenticateToken, bulkCreateProduct);
 // New route for searching products by branch
 ProductRoutes.get("/search", authenticateToken, searchProductsByBranch);
 

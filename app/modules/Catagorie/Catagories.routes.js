@@ -6,6 +6,7 @@ import {
   getCategoryById,
   removeCategory,
   updateCategory,
+  bulkCreateCategory,
   getSuperAdminCategories,
   getActiveCategoriesByBranch,
 } from "./Catagories.controller.js";
@@ -22,5 +23,5 @@ CategoryRoutes.delete("/delete/:id", authenticateToken, removeCategory);
 CategoryRoutes.put("/update/:id", authenticateToken, updateCategory);
 CategoryRoutes.get("/:branch/active", authenticateToken, getActiveCategoriesByBranch);
 CategoryRoutes.get("/superadmin/all", authenticateToken, /* adminOnly, */ getSuperAdminCategories);
-
+CategoryRoutes.post("/bulk-post", authenticateToken, bulkCreateCategory);
 export default CategoryRoutes;

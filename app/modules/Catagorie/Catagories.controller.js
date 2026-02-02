@@ -126,7 +126,49 @@ export async function getSuperAdminCategories(req, res) {
     res.status(500).send({ error: "Server error fetching categories: " + err.message });
   }
 }
+export async function bulkCreateCategory(req, res) {
+  try {
+    const { branch, categories } = req.body; // Expecting { branch: "...", categories: ["Name1", "Name2"] }
 
+    if (!categories || !Array.isArray(categories) || categories.length === 0) {
+      return res.status(400).json({ message: "Please provide a list of category names." });
+    }
+
+    // 1. Find the highest serial number for this branch currently
+    const lastCategory = await Category.findOne({ branch }).sort({ serial: -1 }).exec();
+    let currentSerial = lastCategory ? lastCategory.serial : 0;
+
+    // 2. Prepare the array of documents
+    const documentsToInsert = categories
+      .filter(name => name && name.trim() !== "") // Remove empty lines
+      .map((name) => {
+        currentSerial += 1; // Increment serial for each new item
+        return {
+          categoryName: name.trim(),
+          serial: currentSerial,
+          branch: branch,
+          isActive: true,
+        };
+      });
+
+    if (documentsToInsert.length === 0) {
+        return res.status(400).json({ message: "No valid category names found to insert." });
+    }
+
+    // 3. Bulk Insert
+    const result = await Category.insertMany(documentsToInsert);
+    
+    res.status(201).json({ 
+        message: "Bulk upload successful", 
+        count: result.length, 
+        data: result 
+    });
+
+  } catch (err) {
+    console.error("Bulk create error:", err);
+    res.status(500).send({ error: err.message });
+  }
+}
 // Update a category by ID
 export async function updateCategory(req, res) {
   const id = req.params.id;

@@ -27,7 +27,29 @@ export async function searchProductsByBranch(req, res) {
     }
 }
 
+export async function searchActiveProducts(req, res) {
+    const { branch, query } = req.query;
 
+    if (!branch) {
+        return res.status(400).json({ message: "Branch is required" });
+    }
+
+    try {
+        const filter = {
+            branch: branch,
+            status: "available", // STRICTLY active products only
+        };
+
+        if (query) {
+            filter.productName = { $regex: query, $options: 'i' };
+        }
+
+        const result = await Product.find(filter);
+        res.status(200).json(result);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
+}
 // Get products by category
 export async function getProductsByCategory(req, res) {
   const category = req.params.category;
@@ -80,6 +102,75 @@ export async function getProductById(req, res) {
   } catch (err) {
     res.status(500).send({ error: err.message });
   }
+}
+export async function bulkCreateProduct(req, res) {
+    try {
+        const { branch, products } = req.body; 
+        // We removed 'category' from the root requirement since it can be per-row now
+
+        if (!branch) {
+            return res.status(400).json({ message: "Branch is required." });
+        }
+
+        if (!products || !Array.isArray(products) || products.length === 0) {
+            return res.status(400).json({ message: "Please provide a list of products." });
+        }
+
+        const documentsToInsert = products
+            .filter(p => p.name && p.name.trim() !== "")
+            .map((p) => {
+                const price = parseFloat(p.price) || 0;
+                let vatValue = parseFloat(p.vat) || 0;
+                let sdValue = parseFloat(p.sd) || 0;
+
+                // Handle Type Logic per row or default to 'amount'
+                // Assuming frontend sends the final calculated amount OR we handle calc here
+                // For this style, let's assume the frontend sends the raw number and type
+                
+                const pVatType = p.vatType || "amount";
+                const pSdType = p.sdType || "amount";
+
+                if (pVatType === "percentage") {
+                    vatValue = (vatValue / 100) * price;
+                }
+
+                if (pSdType === "percentage") {
+                    sdValue = (sdValue / 100) * price;
+                }
+
+                return {
+                    productName: p.name.trim(),
+                    price: price,
+                    // Use row-specific category
+                    category: p.category, 
+                    branch: branch,
+                    status: "available",
+                    vat: vatValue, 
+                    sd: sdValue,
+                    vatType: "amount", // We store the result as amount
+                    sdType: "amount",
+                    flavour: false,
+                    cFlavor: false,
+                    addOns: false
+                };
+            });
+
+        if (documentsToInsert.length === 0) {
+            return res.status(400).json({ message: "No valid products found to insert." });
+        }
+
+        const result = await Product.insertMany(documentsToInsert);
+        
+        res.status(201).json({ 
+            message: "Bulk upload successful", 
+            count: result.length, 
+            data: result 
+        });
+
+    } catch (err) {
+        console.error("Bulk create error:", err);
+        res.status(500).send({ error: err.message });
+    }
 }
 
 export async function getProductCategoriesByBranch(req, res) {
