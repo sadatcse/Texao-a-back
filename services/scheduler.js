@@ -54,48 +54,19 @@ const processAndSendReports = async (reportGenerator, templateName, subjectPrefi
 
 export const initScheduledJobs = () => {
     // 1. Daily Report: Runs every day at 1:00 AM
-    cron.schedule('0 1 * * *', () => {
-        processAndSendReports(generateDailyReport, 'summaryReport.ejs', 'Teaxo POS Daily Summary');
+    cron.schedule('58 23 * * *', () => {
+        processAndSendReports(generateDailyReport, 'summaryReport.ejs', 'DATA IT RESTAURANT POS Daily Summary');
     }, { scheduled: true, timezone: "Asia/Dhaka" });
 
     // 2. Weekly Report: Runs every Friday at 2:00 AM
     cron.schedule('0 2 * * 5', () => {
-        processAndSendReports(generateWeeklyReport, 'summaryReport.ejs', 'Teaxo POS Weekly Summary');
+        processAndSendReports(generateWeeklyReport, 'summaryReport.ejs', 'DATA IT RESTAURANT POS Weekly Summary');
     }, { scheduled: true, timezone: "Asia/Dhaka" });
     
     // 3. Monthly Report: Runs on the 1st day of every month at 3:00 AM
     cron.schedule('0 3 1 * *', () => {
-        processAndSendReports(generateMonthlyReport, 'summaryReport.ejs', 'Teaxo POS Monthly Summary');
+        processAndSendReports(generateMonthlyReport, 'summaryReport.ejs', 'DATA IT RESTAURANT POS Monthly Summary');
     }, { scheduled: true, timezone: "Asia/Dhaka" });
 
   
 };
-
-// export const initScheduledJobs = () => {
-//     // --- TESTING SCHEDULES ---
-//     // These are set to specific times for a one-time test today.
-//     // Remember to change them back to the original schedules for production!
-
-//     console.log('✅ Initializing jobs for a one-time TEST run...');
-//     console.log('🕒 Daily report will run at 8:30 PM');
-//     console.log('🕒 Weekly report will run at 8:31 PM');
-//     console.log('🕒 Monthly report will run at 8:32 PM');
-    
-//     // 1. Test Daily Report: Runs today at 8:30 PM (20:30)
-//     // Cron format: <minute> <hour> <day_of_month> <month> <day_of_week>
-//     cron.schedule('17 20 6 10 *', () => {
-//         processAndSendReports(generateDailyReport, 'summaryReport.ejs', '[TEST] Teaxo POS Daily Summary');
-//     }, { scheduled: true, timezone: "Asia/Dhaka" });
-
-//     // 2. Test Weekly Report: Runs today at 8:31 PM (20:31)
-//     cron.schedule('18 20 6 10 *', () => {
-//         processAndSendReports(generateWeeklyReport, 'summaryReport.ejs', '[TEST] Teaxo POS Weekly Summary');
-//     }, { scheduled: true, timezone: "Asia/Dhaka" });
-    
-//     // 3. Test Monthly Report: Runs today at 8:32 PM (20:32)
-//     cron.schedule('19 20 6 10 *', () => {
-//         processAndSendReports(generateMonthlyReport, 'summaryReport.ejs', '[TEST] Teaxo POS Monthly Summary');
-//     }, { scheduled: true, timezone: "Asia/Dhaka" });
-
-//     console.log('❗ IMPORTANT: Revert to original cron schedules after testing!');
-// };
