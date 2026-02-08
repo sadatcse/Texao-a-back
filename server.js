@@ -13,7 +13,7 @@ import routes from "./routes/routes.js";
 import path from "path";
 import passport from "passport";
 import { initScheduledJobs } from './services/scheduler.js';
-
+// import { startAutoOrderPosting } from './services/autoPoster.js';
 // Load environment variables
 environment.config();
 
@@ -116,4 +116,6 @@ server.listen(port, () => {
   console.log(`Server started at ${new Date()}`);
   console.log(`Server listening on port ${port}`);
   initScheduledJobs();
+  // startAutoOrderPosting();
+  
 });
