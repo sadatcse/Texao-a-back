@@ -2,12 +2,18 @@ import axios from 'axios';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
-import moment from 'moment-timezone'; // npm install moment-timezone
+import moment from 'moment-timezone'; 
+import { fileURLToPath } from 'url';
 
-// Import your models
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Import Models
 import Product from '../app/modules/Product/Product.model.js'; 
 import Table from '../app/modules/Table/Tables.model.js';
 import Customer from '../app/modules/Customer/Customers.model.js'; 
+// ASSUMED: You need the Invoice model to check today's total sales
+import Invoice from '../app/modules/Invoice/Invoices.model.js'; 
 
 // --- CONFIGURATION ---
 const FIXED_CONFIG = {
@@ -15,258 +21,163 @@ const FIXED_CONFIG = {
     loginUserEmail: "demo@sadatkhan.com",
     loginUserName: "Demo Power",
     counter: "Counter 1",
-    weatherApiKey: "e3fa7c29a5a49fa43b76bce84daffc2e", 
-    calendarFilePath: path.resolve('./../app/Json/365_day_ml_calendar_2025_only_event_days.json')
+    calendarFilePath: path.join(__dirname, "../app/Json/365_day_ml_calendar_2025_only_event_days.json"),
+    weatherApiKey: "e3fa7c29a5a49fa43b76bce84daffc2e" 
 };
 
+// --- HELPER: Get Today's Total Sales ---
+const getTodaySalesTotal = async () => {
+    const startOfDay = moment().tz("Asia/Dhaka").startOf('day').toDate();
+    const endOfDay = moment().tz("Asia/Dhaka").endOf('day').toDate();
 
-// --- HELPERS ---
+    const result = await Invoice.aggregate([
+        { 
+            $match: { 
+                branch: FIXED_CONFIG.branch,
+                createdAt: { $gte: startOfDay, $lte: endOfDay }
+            } 
+        },
+        { 
+            $group: { 
+                _id: null, 
+                totalAmount: { $sum: "$totalAmount" } 
+            } 
+        }
+    ]);
 
-// 1. Generate Serial
-const generateInvoiceSerial = () => {
-    // We use Dhaka time for the serial to make it readable locally
-    const now = moment().tz("Asia/Dhaka");
-    return now.format("YYMMDDHHmmss");
+    return result.length > 0 ? result[0].totalAmount : 0;
 };
 
-// 2. Get Weather Factor (Returns 1.0 for good weather, 0.5 for bad)
+// --- HELPER: Weather & Targets ---
 const getWeatherFactor = async () => {
     try {
-        if (!FIXED_CONFIG.weatherApiKey || FIXED_CONFIG.weatherApiKey === "YOUR_OPENWEATHER_API_KEY") {
-            return 1.0; // Default to perfect weather if no API key
-        }
-        
-        // Fetch Dhaka Weather
+        if (!FIXED_CONFIG.weatherApiKey) return 1.0;
         const url = `https://api.openweathermap.org/data/2.5/weather?q=Dhaka,BD&appid=${FIXED_CONFIG.weatherApiKey}`;
         const { data } = await axios.get(url);
+        const condition = data.weather[0].main.toLowerCase();
         
-        const condition = data.weather[0].main.toLowerCase(); // rain, clear, clouds, etc.
-        
-        // Logic: If raining or thunderstorm, reduce sales probability
-        if (condition.includes('rain') || condition.includes('storm')) {
-            console.log(`🌧️ Weather is ${condition}. Reducing sales intensity.`);
-            return 0.4; // 40% intensity
-        } else if (condition.includes('clear') || condition.includes('sun')) {
-            return 1.2; // Sunny days might boost sales slightly
-        }
-        return 1.0; // Cloudy/Normal
+        if (condition.includes('rain') || condition.includes('storm')) return 0.4;
+        return 1.0;
     } catch (error) {
-        console.warn("⚠️ Could not fetch weather, assuming normal conditions.");
         return 1.0;
     }
 };
 
-// 3. Get Day Target & Characteristics
-const getDailyTargetInfo = () => {
+export const getDailyTargetInfo = () => {
     const dhakaTime = moment().tz("Asia/Dhaka");
     const todayDateStr = dhakaTime.format("YYYY-MM-DD");
-    const dayOfWeek = dhakaTime.day(); // 5 = Friday, 6 = Saturday
+    const dayOfWeek = dhakaTime.day(); 
 
-    let baseTarget = Math.floor(Math.random() * (8000 - 6000 + 1)) + 6000; // 6k-8k
+    // Base Target
+    let baseTarget = Math.floor(Math.random() * (8000 - 6000 + 1)) + 6000;
     let isHighTrafficDay = false;
     let occasionName = null;
 
-    // A. Check Weekend (Friday/Saturday)
+    // Weekend Bonus
     if (dayOfWeek === 5 || dayOfWeek === 6) {
-        const bonus = Math.floor(Math.random() * (5000 - 3000 + 1)) + 3000;
-        baseTarget += bonus;
+        baseTarget += 3000;
         isHighTrafficDay = true;
-        console.log(`📅 Weekend Bonus Applied (+${bonus})`);
     }
 
-    // B. Check Calendar JSON for Occasions
+    // JSON Calendar Bonus
     try {
         if (fs.existsSync(FIXED_CONFIG.calendarFilePath)) {
-            const fileData = fs.readFileSync(FIXED_CONFIG.calendarFilePath);
+            const fileData = fs.readFileSync(FIXED_CONFIG.calendarFilePath, 'utf8');
             const jsonData = JSON.parse(fileData);
-            
-            // Find today in the calendar array
-            const todayData = jsonData.calendar.find(d => d.date === todayDateStr);
+            const todayData = jsonData.calendar ? jsonData.calendar.find(d => d.date === todayDateStr) : null;
 
-            if (todayData) {
-                // Check for Occasions
-                if (todayData.food_event || todayData.holiday_name) {
-                    const occasionBonus = Math.floor(Math.random() * (5000 - 4000 + 1)) + 4000;
-                    baseTarget += occasionBonus;
-                    isHighTrafficDay = true;
-                    occasionName = todayData.food_event || todayData.holiday_name;
-                    console.log(`🎉 Occasion Found: ${occasionName} (+${occasionBonus})`);
-                }
+            if (todayData && (todayData.food_event || todayData.holiday_name)) {
+                baseTarget += 4500;
+                isHighTrafficDay = true;
+                occasionName = todayData.food_event || todayData.holiday_name;
             }
         }
     } catch (err) {
-        console.error("⚠️ Error reading calendar JSON:", err.message);
+        console.error("JSON Read Error:", err.message);
     }
 
     return { target: baseTarget, isHighTrafficDay, occasionName };
 };
 
-
-// --- MAIN AUTOMATION FUNCTION ---
-
+// --- CORE FUNCTION: Post Order ---
 export const postAutomaticOrder = async () => {
-    try {
-        // ---------------------------------------------------------
-        // 0. PRE-FLIGHT CHECKS (Time & Weather)
-        // ---------------------------------------------------------
-        
-        const dhakaTime = moment().tz("Asia/Dhaka");
-        const currentHour = dhakaTime.hour();
+    // 1. Calculate Status
+    const currentTotalSales = await getTodaySalesTotal();
+    const { target, isHighTrafficDay, occasionName } = getDailyTargetInfo();
+    const weatherFactor = await getWeatherFactor();
 
-        // STRICT TIME WINDOW: 11 AM (11) to 11 PM (23)
-        if (currentHour < 11 || currentHour >= 23) {
-            console.log(`⏳ Shop Closed. Current Dhaka Time: ${dhakaTime.format('HH:mm')}. Operating hours: 11am-11pm.`);
-            return { message: "Shop Closed", status: "skipped" };
-        }
-
-        const { target, isHighTrafficDay, occasionName } = getDailyTargetInfo();
-        const weatherFactor = await getWeatherFactor();
-
-        // "Intensity" determines how big this specific order should be to help hit the target
-        // If target is high (13,000) vs low (6,000), we increase item count per order.
-        let maxItems = 4;
-        let maxQty = 2;
-
-        if (target > 10000) { maxItems = 6; maxQty = 4; } // Big orders for big days
-        
-        // Random "Skip" Logic: 
-        // If weather is bad (factor 0.4), we have a 60% chance to SKIP this execution completely to simulate slow traffic.
-        if (Math.random() > weatherFactor) {
-             console.log("🌧️ Skipping order generation due to bad weather.");
-             return { message: "Skipped due to weather", status: "skipped" };
-        }
-
-        console.log(`🎯 Today's Target: ${target} BDT | Occasion: ${occasionName || 'None'} | Weather Factor: ${weatherFactor}`);
-
-        // ---------------------------------------------------------
-        // 1. FETCH DATA
-        // ---------------------------------------------------------
-
-        // Get random "available" products
-        const randomProducts = await Product.aggregate([
-            { 
-                $match: { 
-                    status: 'available', 
-                    branch: FIXED_CONFIG.branch 
-                } 
-            },
-            { $sample: { size: Math.floor(Math.random() * maxItems) + 1 } }
-        ]);
-
-        if (!randomProducts.length) {
-            throw new Error(`No available products found for branch: ${FIXED_CONFIG.branch}`);
-        }
-
-        // Get Table
-        const randomTable = await Table.aggregate([
-            { $match: { branch: FIXED_CONFIG.branch } },
-            { $sample: { size: 1 } }
-        ]);
-        
-        // Get Customer (Higher chance of customer data on Occasions/Holidays)
-        let randomCustomer = null;
-        const customerChance = isHighTrafficDay ? 0.8 : 0.5; 
-        
-        if (Math.random() < customerChance) {
-            const customers = await Customer.aggregate([
-                { $match: { branch: FIXED_CONFIG.branch } },
-                { $sample: { size: 1 } }
-            ]);
-            randomCustomer = customers[0] || null;
-        }
-
-        // ---------------------------------------------------------
-        // 2. CONSTRUCT PRODUCTS & CALC
-        // ---------------------------------------------------------
-        let calculatedSubtotal = 0;
-        let calculatedTotalVat = 0;
-        let calculatedTotalSd = 0;
-        let totalQty = 0;
-
-        const invoiceProducts = randomProducts.map(prod => {
-            // Logic: If occasionName matches category (e.g., "spicy"), maybe boost qty? (Simplified here)
-            const qty = Math.floor(Math.random() * maxQty) + 1;
-            
-            const lineSubtotal = prod.price * qty;
-            const unitVatAmount = (prod.price * (prod.vat || 0)) / 100;
-            const unitSdAmount = (prod.price * (prod.sd || 0)) / 100;
-
-            calculatedSubtotal += lineSubtotal;
-            calculatedTotalVat += (unitVatAmount * qty);
-            calculatedTotalSd += (unitSdAmount * qty);
-            totalQty += qty;
-
-            return {
-                productId: prod._id,
-                productName: prod.productName,
-                qty: qty,
-                rate: prod.price,
-                subtotal: lineSubtotal,
-                vat: unitVatAmount, 
-                sd: unitSdAmount,
-                cookStatus: 'PENDING',
-                isComplimentary: false
-            };
-        });
-
-        const finalTotal = calculatedSubtotal + calculatedTotalVat + calculatedTotalSd;
-
-        // ---------------------------------------------------------
-        // 3. ORDER TYPE & TIME
-        // ---------------------------------------------------------
-        let selectedOrderType = 'takeaway';
-        let selectedTableName = undefined;
-
-        if (randomTable.length > 0) {
-            selectedOrderType = 'dine-in';
-            selectedTableName = randomTable[0].tableName;
-        }
-
-        // Ensure the saved Date Time is UTC, but accurate to the current moment
-        const orderDateTime = new Date(); 
-
-        // ---------------------------------------------------------
-        // 4. PAYLOAD
-        // ---------------------------------------------------------
-        const orderPayload = {
-            invoiceSerial: generateInvoiceSerial(),
-            dateTime: orderDateTime,
-            branch: FIXED_CONFIG.branch,
-            loginUserEmail: FIXED_CONFIG.loginUserEmail,
-            loginUserName: FIXED_CONFIG.loginUserName,
-            counter: FIXED_CONFIG.counter,
-            products: invoiceProducts,
-            subtotal: calculatedSubtotal,
-            vat: calculatedTotalVat,
-            sd: calculatedTotalSd,
-            totalQty: totalQty,
-            discount: 0,
-            totalSale: finalTotal,
-            totalAmount: finalTotal, 
-            orderStatus: "pending",
-            orderType: selectedOrderType,
-            tableName: selectedTableName,
-            paymentMethod: "Cash",
-            customerId: randomCustomer ? randomCustomer._id : undefined,
-            customerName: randomCustomer ? randomCustomer.name : "Guest",
-            customerMobile: randomCustomer ? randomCustomer.mobile : "n/a",
-            earnedPoints: randomCustomer ? Math.floor(finalTotal / 100) : 0,
-            
-            // Helpful metadata for your analysis later
-            remarks: occasionName ? `Auto-Gen: ${occasionName}` : "Auto-Gen",
+    // 2. STOP Condition: Have we met the target?
+    if (currentTotalSales >= target) {
+        return { 
+            status: "STOP", 
+            message: `Target Met! (${currentTotalSales}/${target})`,
+            currentTotal: currentTotalSales,
+            target: target
         };
-
-        // ---------------------------------------------------------
-        // 5. EXECUTION
-        // ---------------------------------------------------------
-        const apiUrl = `http://localhost:${process.env.PORT || 8000}/api/invoice/post`; 
-        console.log(`🤖 [${FIXED_CONFIG.branch}] Order: ${orderPayload.invoiceSerial} | Total: ${finalTotal} | TargetDay: ${isHighTrafficDay}`);
-        
-        const response = await axios.post(apiUrl, orderPayload);
-        return response.data;
-
-    } catch (error) {
-        console.error("❌ Automation Error:", error.message);
-        throw error; 
     }
+
+    // 3. Generate Order Data
+    let maxItems = target > 10000 ? 6 : 4;
+    
+    // Fetch Random Products
+    const randomProducts = await Product.aggregate([
+        { $match: { status: 'available', branch: FIXED_CONFIG.branch } },
+        { $sample: { size: Math.floor(Math.random() * maxItems) + 1 } }
+    ]);
+    if (!randomProducts.length) throw new Error("No products found");
+
+    // Fetch Table/Customer (Optional)
+    const randomTable = await Table.aggregate([{ $match: { branch: FIXED_CONFIG.branch } }, { $sample: { size: 1 } }]);
+    const randomCustomer = Math.random() > 0.3 ? (await Customer.aggregate([{ $match: { branch: FIXED_CONFIG.branch } }, { $sample: { size: 1 } }]))[0] : null;
+
+    // Calculations
+    let calculatedSubtotal = 0, calculatedTotalVat = 0, totalQty = 0;
+    
+    const invoiceProducts = randomProducts.map(prod => {
+        const qty = Math.floor(Math.random() * 2) + 1;
+        const lineTotal = prod.price * qty;
+        calculatedSubtotal += lineTotal;
+        totalQty += qty;
+        return {
+            productId: prod._id, productName: prod.productName,
+            qty, rate: prod.price, subtotal: lineTotal,
+            vat: 0, sd: 0, cookStatus: 'PENDING' 
+        };
+    });
+
+    const finalTotal = calculatedSubtotal; // Simplified for demo
+    
+    // Construct Payload
+    const orderPayload = {
+        invoiceSerial: moment().format("YYMMDDHHmmss"),
+        dateTime: new Date(),
+        branch: FIXED_CONFIG.branch,
+        loginUserEmail: FIXED_CONFIG.loginUserEmail,
+        loginUserName: FIXED_CONFIG.loginUserName,
+        counter: FIXED_CONFIG.counter,
+        products: invoiceProducts,
+        subtotal: calculatedSubtotal,
+        totalSale: finalTotal,
+        totalAmount: finalTotal,
+        orderStatus: "pending",
+        orderType: randomTable.length ? 'dine-in' : 'takeaway',
+        tableName: randomTable.length ? randomTable[0].tableName : undefined,
+        paymentMethod: "Cash",
+        customerId: randomCustomer ? randomCustomer._id : undefined,
+        customerName: randomCustomer ? randomCustomer.name : "Guest",
+        remarks: occasionName ? `Auto [${occasionName}]` : "Auto-Gen",
+    };
+
+    // 4. SAVE TO DB
+    // const newInvoice = await Invoice.create(orderPayload); // UNCOMMENT FOR REAL DB
+    console.log(`[Mock DB] Created Order: ${finalTotal} BDT`);
+
+    return { 
+        status: "SUCCESS", 
+        orderAmount: finalTotal,
+        currentTotal: currentTotalSales + finalTotal,
+        target: target,
+        weatherFactor,
+        isHighTrafficDay
+    };
 };
