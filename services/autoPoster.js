@@ -1,15 +1,22 @@
 // services/autoPoster.js
+import cron from "node-cron";
 import { postAutomaticOrder } from './orderAutomation.js';
 
 export const startAutoOrderPosting = () => {
-    console.log("--- Automatic Order Posting Script Started ---");
+    console.log("--- Automatic Order Posting Script Scheduled (BD Time) ---");
 
-    setInterval(async () => {
+    // Runs once every day at 11:00 AM (Bangladesh Time)
+    cron.schedule("15 15 * * *", async () => {
         try {
             const result = await postAutomaticOrder();
-            console.log(`[${new Date().toLocaleTimeString()}] Order Posted Successfully:`, result.id || "Success");
+            console.log(`[${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" })}] Order Posted Successfully:`, result.id || "Success");
         } catch (err) {
-            console.error(`[${new Date().toLocaleTimeString()}] Auto-Post Failed:`, err.message);
+            console.error(`[${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" })}] Auto-Post Failed:`, err.message);
         }
-    }, 30000); // 30000ms = 30 seconds
+    }, {
+        timezone: "Asia/Dhaka"
+    });
 };
+
+
+//e3fa7c29a5a49fa43b76bce84daffc2e
