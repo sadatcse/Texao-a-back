@@ -6,7 +6,7 @@ export const startAutoOrderPosting = () => {
     console.log("--- Automatic Order Posting Script Scheduled (BD Time) ---");
 
     // Runs once every day at 11:00 AM (Bangladesh Time)
-    cron.schedule("15 15 * * *", async () => {
+    cron.schedule("20 15 * * *", async () => {
         try {
             const result = await postAutomaticOrder();
             console.log(`[${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" })}] Order Posted Successfully:`, result.id || "Success");

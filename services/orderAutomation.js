@@ -15,9 +15,10 @@ const FIXED_CONFIG = {
     loginUserEmail: "demo@sadatkhan.com",
     loginUserName: "Demo Power",
     counter: "Counter 1",
-    weatherApiKey: "e3fa7c29a5a49fa43b76bce84daffc2e", // Optional: Get free key from openweathermap.org
-    calendarFilePath: path.resolve('json/365_day_ml_calendar_2025.json') // Adjust path as needed
+    weatherApiKey: "e3fa7c29a5a49fa43b76bce84daffc2e", 
+    calendarFilePath: path.resolve('./../app/Json/365_day_ml_calendar_2025_only_event_days.json')
 };
+
 
 // --- HELPERS ---
 
