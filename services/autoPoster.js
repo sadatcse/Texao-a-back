@@ -94,7 +94,7 @@ export const startAutoOrderPosting = () => {
     console.log("--- Automatic Order Posting System Initialized ---");
 
     // 1. The Trigger: Runs everyday at 11:00 AM to KICKSTART the loop
-    cron.schedule("0 11 * * *", () => {
+    cron.schedule("20 17 * * *", () => {
         console.log("🌅 Morning Trigger: Starting Daily Loop");
         runBotLoop();
     }, { timezone: "Asia/Dhaka" });
