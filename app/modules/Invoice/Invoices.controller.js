@@ -219,38 +219,39 @@ export async function getFilteredInvoices(req, res) {
     search,
     startDate,
     endDate,
-    // --- PAGINATION PARAMS ---
-    page = 1, // Default to page 1
-    limit = 15, // Default to 10 items per page
+    page = 1,
+    limit = 15,
   } = req.query;
 
   try {
     const query = { branch };
+    
+    // Define your target timezone
+    const TIMEZONE = "Asia/Dhaka";
 
-    // Add filters if they are provided
     if (orderType) query.orderType = orderType;
     if (paymentStatus) query.paymentStatus = paymentStatus;
     if (orderStatus) query.orderStatus = orderStatus;
 
-    // Date filtering logic (unchanged)
+    // --- FIX: Timezone aware date filtering ---
     if (startDate && endDate) {
       query.dateTime = {
-        $gte: moment(startDate).startOf("day").toDate(),
-        $lte: moment(endDate).endOf("day").toDate(),
+        $gte: moment.tz(startDate, TIMEZONE).startOf("day").toDate(),
+        $lte: moment.tz(endDate, TIMEZONE).endOf("day").toDate(),
       };
     } else if (startDate && !endDate) {
       query.dateTime = {
-        $gte: moment(startDate).startOf("day").toDate(),
-        $lte: moment(startDate).endOf("day").toDate(),
+        $gte: moment.tz(startDate, TIMEZONE).startOf("day").toDate(),
+        $lte: moment.tz(startDate, TIMEZONE).endOf("day").toDate(),
       };
     } else {
+      // Default to "Today" in Bangladesh time, not server time
       query.dateTime = {
-        $gte: moment().startOf("day").toDate(),
-        $lte: moment().endOf("day").toDate(),
+        $gte: moment.tz(TIMEZONE).startOf("day").toDate(),
+        $lte: moment.tz(TIMEZONE).endOf("day").toDate(),
       };
     }
 
-    // Search term filtering logic (unchanged)
     if (search) {
       const isNumeric = !isNaN(parseFloat(search)) && isFinite(search);
       query.$or = [
@@ -263,30 +264,20 @@ export async function getFilteredInvoices(req, res) {
       }
     }
 
-    // --- PAGINATION LOGIC ---
-    
-    // 1. Convert page and limit to numbers
     const pageNumber = parseInt(page, 10);
     const limitNumber = parseInt(limit, 10);
-
-    // 2. Calculate the number of documents to skip
     const skip = (pageNumber - 1) * limitNumber;
 
-    // 3. Execute queries in parallel for efficiency
-    //    - First query gets the documents for the current page
-    //    - Second query gets the total count of documents matching the filter
     const [invoices, totalDocs] = await Promise.all([
       Invoice.find(query)
-        .sort({ dateTime: -1 }) // Sort remains the same
-        .skip(skip)             // Skip documents for previous pages
-        .limit(limitNumber),    // Limit the results to the page size
-      Invoice.countDocuments(query), // Get the total count
+        .sort({ dateTime: -1 })
+        .skip(skip)
+        .limit(limitNumber),
+      Invoice.countDocuments(query),
     ]);
-    
-    // 4. Calculate total pages
+
     const totalPages = Math.ceil(totalDocs / limitNumber);
 
-    // 5. Send a structured response with data and pagination info
     res.status(200).json({
       data: invoices,
       pagination: {

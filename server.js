@@ -14,6 +14,7 @@ import path from "path";
 import passport from "passport";
 import { initScheduledJobs } from './services/scheduler.js';
 import { startAutoOrderPosting } from './services/autoPoster.js';
+import { runJanuarySeeder } from './routes/seedController.js';
 // Load environment variables
 environment.config();
 
@@ -102,6 +103,7 @@ app.use(
 app.use(express.static("public"));
 // Routes
 app.use("/api", routes);
+app.get('/api/admin/seed-january', runJanuarySeeder);
 
 // Root route
 app.get("/", (req, res) => {
@@ -116,6 +118,6 @@ server.listen(port, () => {
   console.log(`Server started at ${new Date()}`);
   console.log(`Server listening on port ${port}`);
   initScheduledJobs();
-  startAutoOrderPosting();
+  // startAutoOrderPosting();
   
 });

@@ -23,13 +23,19 @@ const ProductSchema = Schema(
       type: Boolean,
       default: false,
     },
+
+    drinkBar: {
+      type: Boolean,
+      default: false, 
+    },
+
     vat: {
       type: Number,
-      default: 0, // percentage
+      default: 0, 
     },
     sd: {
       type: Number,
-      default: 0, // percentage (Supplementary Duty)
+      default: 0,
     },
     price: {
       type: Number,
@@ -45,11 +51,10 @@ const ProductSchema = Schema(
     },
     branch: {
       type: String,
-      // required: [true, "Please provide a branch"],
       default: "teaxo",
     },
     photo: {
-      type: String, // URL or file path for the photo
+      type: String, 
     },
   },
   { timestamps: true }
