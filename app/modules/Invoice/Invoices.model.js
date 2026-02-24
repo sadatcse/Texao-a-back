@@ -12,7 +12,17 @@ const generateInvoiceSerial = () => {
   return `${year}${month}${date}${hours}${minutes}${seconds}`;
 };
 
-// --- Sub-schema for products within an invoice ---
+const ProductUpdateHistorySchema = Schema({
+  updateNumber: { type: Number, default: 0 },
+  updateTime: { type: Date, default: Date.now },
+  cookStatus: {
+    type: String,
+    enum: ['PENDING', 'COOKING', 'SERVED'],
+    default: 'PENDING',
+  },
+  qty: { type: Number, required: true }
+});
+
 const InvoiceProductSchema = Schema({
   productId: {
     type: Schema.Types.ObjectId,
@@ -21,13 +31,10 @@ const InvoiceProductSchema = Schema({
   },
   productName: { type: String, required: true },
   qty: { type: Number, required: true },
-  
-  // NEW: Tracks how many items have already been sent to the kitchen/bar
-  printedQty: { type: Number, default: 0 }, 
-  
-  // NEW: Tracks in which round this item was last added/updated
-  addedInRound: { type: Number, default: 1 },
-
+  history: { 
+    type: [ProductUpdateHistorySchema], 
+    default: [] 
+  },
   rate: { type: Number, required: true },
   subtotal: { type: Number, required: true },
   vat: { type: Number, default: 0 },
@@ -53,12 +60,9 @@ const InvoiceSchema = Schema(
     dateTime: { type: Date, required: true, default: Date.now },
     loginUserEmail: { type: String, required: true },
     loginUserName: { type: String, required: true },
-    
-    // NEW: Tracks the current round of ordering (1st time, 2nd time, 3rd time, etc.)
     kotRound: { type: Number, default: 1 },
-
     products: {
-      type: [InvoiceProductSchema], // Use the updated sub-schema
+      type: [InvoiceProductSchema],
       required: true,
       validate: [v => Array.isArray(v) && v.length > 0, 'Please add at least one product']
     },
