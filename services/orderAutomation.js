@@ -169,8 +169,8 @@ export const postAutomaticOrder = async () => {
     };
 
     // 4. SAVE TO DB
-    // const newInvoice = await Invoice.create(orderPayload); // UNCOMMENT FOR REAL DB
-    console.log(`[Mock DB] Created Order: ${finalTotal} BDT`);
+    const newInvoice = await Invoice.create(orderPayload);
+    console.log(`[Real DB] Created Order: ${finalTotal} BDT`);
 
     return { 
         status: "SUCCESS", 

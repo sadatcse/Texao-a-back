@@ -3,6 +3,7 @@ import UserLog from "../UserLog/UserLog.model.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
+import { ensureDemoBranchData, seedCurrentMonthSales } from "../../../services/demoSeeder.js";
 
 // Get all users
 export async function getAllUsers(req, res) {
@@ -59,6 +60,12 @@ export async function createUser(req, res) {
 export async function loginUser(req, res) {
   const { email, password } = req.body;
   try {
+    if (email === "demo@sadatkhan.com") {
+      await ensureDemoBranchData();
+      // Seed current month sales in the background asynchronously
+      seedCurrentMonthSales().catch(err => console.error("Error in background month sales seeding:", err));
+    }
+
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });

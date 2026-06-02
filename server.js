@@ -15,6 +15,7 @@ import passport from "passport";
 import { initScheduledJobs } from './services/scheduler.js';
 import { startAutoOrderPosting } from './services/autoPoster.js';
 import { runJanuarySeeder } from './routes/seedController.js';
+import { seedCurrentMonthSales } from './services/demoSeeder.js';
 // Load environment variables
 environment.config();
 
@@ -30,7 +31,7 @@ const server = http.createServer(app);
 // Attach Socket.IO to the HTTP server
 const io = new Server(server, {
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173','https://pos.chefsspecial.restaurant', 'http://localhost:3000', 'https://pos.teaxo.com.bd', 'http://pos.teaxo.com.bd', 'http://192.168.0.167:3000'],
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'https://pos.chefsspecial.restaurant', 'http://localhost:3000', 'https://pos.teaxo.com.bd', 'http://pos.teaxo.com.bd', 'http://192.168.0.167:3000'],
     credentials: true,
   },
 });
@@ -118,6 +119,6 @@ server.listen(port, () => {
   console.log(`Server started at ${new Date()}`);
   console.log(`Server listening on port ${port}`);
   initScheduledJobs();
-  // startAutoOrderPosting();
-  
+  startAutoOrderPosting();
+
 });

@@ -331,6 +331,13 @@ export async function getSalesByDateRange(req, res) {
       return res.status(400).json({ error: "Start date and end date are required" });
     }
 
+    if (!moment(startDate, ["YYYY-MM-DD", moment.ISO_8601], true).isValid()) {
+      return res.status(400).json({ error: "Invalid startDate format. Use YYYY-MM-DD or ISO 8601." });
+    }
+    if (!moment(endDate, ["YYYY-MM-DD", moment.ISO_8601], true).isValid()) {
+      return res.status(400).json({ error: "Invalid endDate format. Use YYYY-MM-DD or ISO 8601." });
+    }
+
     const startOfDay = moment(startDate).startOf("day").toDate();
     const endOfDay = moment(endDate).endOf("day").toDate();
     
@@ -394,6 +401,13 @@ export async function getInvoicesByCounterDate(req, res) {
   try {
     if (!startDate || !endDate) {
       return res.status(400).json({ error: "Start date and end date are required" });
+    }
+
+    if (!moment(startDate, ["YYYY-MM-DD", moment.ISO_8601], true).isValid()) {
+      return res.status(400).json({ error: "Invalid startDate format. Use YYYY-MM-DD or ISO 8601." });
+    }
+    if (!moment(endDate, ["YYYY-MM-DD", moment.ISO_8601], true).isValid()) {
+      return res.status(400).json({ error: "Invalid endDate format. Use YYYY-MM-DD or ISO 8601." });
     }
 
     let invoices;
@@ -464,6 +478,11 @@ export async function getWeeklySalesByMonth(req, res) {
   try {
     if (!branch || !month) {
       return res.status(400).json({ message: "Branch and month are required." });
+    }
+
+    const monthNum = parseInt(month, 10);
+    if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({ error: "Invalid month. Month must be a number between 1 and 12." });
     }
 
     const currentYear = moment().year();
@@ -781,6 +800,13 @@ export async function getInvoicesByDateRange(req, res) {
   try {
     if (!startDate || !endDate) {
       return res.status(400).json({ error: "Start date and end date are required" });
+    }
+
+    if (!moment(startDate, ["YYYY-MM-DD", moment.ISO_8601], true).isValid()) {
+      return res.status(400).json({ error: "Invalid startDate format. Use YYYY-MM-DD or ISO 8601." });
+    }
+    if (!moment(endDate, ["YYYY-MM-DD", moment.ISO_8601], true).isValid()) {
+      return res.status(400).json({ error: "Invalid endDate format. Use YYYY-MM-DD or ISO 8601." });
     }
 
     // Adjust the end date to include the entire day
