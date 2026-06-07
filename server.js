@@ -1,126 +1,132 @@
 import express from "express";
 import environment from "dotenv";
 import cors from "cors";
-import http from "http"; // Import the http module
-import { Server } from "socket.io"; // Import Server from socket.io
+import http from "http";
+import { Server } from "socket.io";
 
 import fileUpload from "express-fileupload";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import passport from "passport";
+
 import connectDB from "./config/db.js";
 import { errorHandler } from "./middleware/errorMiddleware.js";
 import routes from "./routes/routes.js";
-import path from "path";
-import passport from "passport";
-import { initScheduledJobs } from './services/scheduler.js';
-import { startAutoOrderPosting } from './services/autoPoster.js';
-import { runJanuarySeeder } from './routes/seedController.js';
-import { seedCurrentMonthSales } from './services/demoSeeder.js';
-// Load environment variables
+
+import { initScheduledJobs } from "./services/scheduler.js";
+import { startAutoOrderPosting } from "./services/autoPoster.js";
+import { runJanuarySeeder } from "./routes/seedController.js";
+
+// Load env
 environment.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Connect to the database
+// Database connection
 connectDB();
 
-// --- Socket.IO Setup ---
-// Create an HTTP server using the Express app
-const server = http.createServer(app);
-// Attach Socket.IO to the HTTP server
-const io = new Server(server, {
-  cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'https://pos.chefsspecial.restaurant', 'http://localhost:3000', 'https://pos.teaxo.com.bd', 'http://pos.teaxo.com.bd', 'http://192.168.0.167:3000', 'https://teaxo-pos-client.vercel.app', 'https://teaxo-pos-client.vercel.app/'],
-    credentials: true,
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://teaxo-pos-client.vercel.app",
+  "http://teaxo-pos-client.vercel.app",
+  "https://pos.chefsspecial.restaurant",
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS Not Allowed"));
+    }
   },
+  credentials: true,
+};
+
+
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: corsOptions,
 });
 
-// Pass the Socket.IO instance to the request object so it's available in route handlers
+// Make io available in routes
 app.use((req, res, next) => {
   req.io = io;
   next();
 });
 
-// Socket.IO connection event
-io.on('connection', (socket) => {
+// Socket connection
+io.on("connection", (socket) => {
+  console.log("Socket Connected:", socket.id);
 
-  // Listen for a "join-branch" event from the client
-  socket.on('join-branch', (branchName) => {
+  socket.on("join-branch", (branchName) => {
     socket.join(branchName);
 
+    console.log(`Socket ${socket.id} joined ${branchName}`);
   });
 
-  // Listen for disconnects
-  socket.on('disconnect', () => {
-
+  socket.on("disconnect", () => {
+    console.log("Socket Disconnected:", socket.id);
   });
 });
 
-// --- End of Socket.IO Setup ---
 
-// Security middleware
-app.use(helmet({
-  hidePoweredBy: true,
-}));
+
+app.use(
+  helmet({
+    hidePoweredBy: true,
+  })
+);
 
 app.use(passport.initialize());
 
-// Rate limiting
-// const limiter = rateLimit({
-//   windowMs: 5 * 60 * 1000, // 5 minutes
-//   max: 10000, // Limit each IP to 100 requests
-// });
-// app.use(limiter);
+// Apply same CORS everywhere
+app.use(cors(corsOptions));
 
-// CORS configuration
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'https://pos.teaxo.com.bd',
-  'http://pos.teaxo.com.bd',
-  'http://192.168.0.167:3000/',
-  'https://teaxo-pos-client.vercel.app',
-  'https://teaxo-pos-client.vercel.app/'
-];
-app.use(cors({
-  origin: (origin, callback) => {
-    if (allowedOrigins.includes(origin) || !origin) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-}));
-
-// Parsing middleware
+// Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// File upload
 app.use(
   fileUpload({
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max file size
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+    },
   })
 );
-// Static files
-app.use(express.static("public"));
-// Routes
-app.use("/api", routes);
-app.get('/api/admin/seed-january', runJanuarySeeder);
 
-// Root route
+app.use(express.static("public"));
+
+
+app.use("/api", routes);
+
+app.get("/api/admin/seed-january", runJanuarySeeder);
+
 app.get("/", (req, res) => {
-  res.status(200).json({ message: "Server is running." });
+  res.status(200).json({
+    message: "Server is running.",
+  });
 });
 
-// Error handling middleware
+
+
 app.use(errorHandler);
 
-// Start server
+
+
 server.listen(port, () => {
   console.log(`Server started at ${new Date()}`);
-  console.log(`Server listening on port ${port}`);
+  console.log(`Listening on port ${port}`);
+
   initScheduledJobs();
   startAutoOrderPosting();
-
 });
