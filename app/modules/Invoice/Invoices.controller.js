@@ -1509,6 +1509,106 @@ export async function getDashboardByBranch(req, res) {
       totalItems: dailySales[date].totalItems
     }));
 
+    // Calculate last 6 months sales dynamically
+    const last6MonthsSales = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = moment().subtract(i, 'months').startOf('month');
+      const monthEnd = moment().subtract(i, 'months').endOf('month');
+      const monthName = monthStart.format('MMM YYYY');
+      
+      let totalSale = 0;
+      let orderCount = 0;
+      
+      invoices.forEach(invoice => {
+        const invoiceDate = moment(invoice.dateTime);
+        if (invoiceDate.isBetween(monthStart, monthEnd, null, '[]')) {
+          totalSale += invoice.totalAmount;
+          orderCount += 1;
+        }
+      });
+      
+      last6MonthsSales.push({
+        month: monthName,
+        totalSale,
+        orderCount
+      });
+    }
+
+    // Calculate this month's custom statistics
+    const thisMonthStart = moment().startOf('month');
+    const thisMonthEnd = moment().endOf('month');
+    
+    let cashSale = 0, cashCount = 0;
+    let cardSale = 0, cardCount = 0;
+    let mobileSale = 0, mobileCount = 0;
+    let bankSale = 0, bankCount = 0;
+
+    let dineInSale = 0, dineInCount = 0;
+    let takeawaySale = 0, takeawayCount = 0;
+    let deliverySale = 0, deliveryCount = 0;
+
+    const productSalesMap = {};
+
+    invoices.forEach(invoice => {
+      const invoiceDate = moment(invoice.dateTime);
+      if (invoiceDate.isBetween(thisMonthStart, thisMonthEnd, null, '[]')) {
+        // Payment methods
+        const method = invoice.paymentMethod;
+        if (method === 'Cash') {
+          cashSale += invoice.totalAmount;
+          cashCount++;
+        } else if (method === 'Bank') {
+          bankSale += invoice.totalAmount;
+          bankCount++;
+        } else if (['Card', 'Visa Card', 'Master Card', 'Amex Card'].includes(method)) {
+          cardSale += invoice.totalAmount;
+          cardCount++;
+        } else if (['Mobile', 'Bkash', 'Nagad', 'Rocket'].includes(method)) {
+          mobileSale += invoice.totalAmount;
+          mobileCount++;
+        }
+
+        // Order types
+        const type = invoice.orderType;
+        if (type === 'dine-in') {
+          dineInSale += invoice.totalAmount;
+          dineInCount++;
+        } else if (type === 'takeaway') {
+          takeawaySale += invoice.totalAmount;
+          takeawayCount++;
+        } else if (type === 'delivery') {
+          deliverySale += invoice.totalAmount;
+          deliveryCount++;
+        }
+
+        // Products
+        invoice.products.forEach(p => {
+          if (!productSalesMap[p.productName]) {
+            productSalesMap[p.productName] = { name: p.productName, qty: 0, sale: 0 };
+          }
+          productSalesMap[p.productName].qty += p.qty;
+          productSalesMap[p.productName].sale += p.subtotal;
+        });
+      }
+    });
+
+    const topProducts = Object.values(productSalesMap)
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+
+    const paymentMethodStats = [
+      { name: 'Cash', value: cashSale, count: cashCount },
+      { name: 'Card', value: cardSale, count: cardCount },
+      { name: 'Mobile', value: mobileSale, count: mobileCount },
+      { name: 'Bank', value: bankSale, count: bankCount }
+    ].filter(stat => stat.value > 0);
+
+    const orderTypeStats = [
+      { name: 'Dine-In', value: dineInSale, count: dineInCount },
+      { name: 'Takeaway', value: takeawaySale, count: takeawayCount },
+      { name: 'Delivery', value: deliverySale, count: deliveryCount }
+    ].filter(stat => stat.value > 0);
+
     // Prepare response
     const response = {
       thisMonthName,
@@ -1519,6 +1619,10 @@ export async function getDashboardByBranch(req, res) {
       yesterdaysTotalSale,
       todaysTotalItems,
       todaysPendingOrders,
+      last6MonthsSales,
+      paymentMethodStats,
+      orderTypeStats,
+      topProducts
     };
 
     res.status(200).json(response);
