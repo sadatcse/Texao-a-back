@@ -135,7 +135,15 @@ const generateOrderForTime = async (dateMoment, occasionName) => {
     };
 };
 
-export const ensureDemoBranchData = async () => {
+export const ensureDemoBranchData = async (force = false) => {
+    if (!force) {
+        const demoUser = await User.findOne({ email: FIXED_CONFIG.loginUserEmail });
+        const demoCompany = await Company.findOne({ branch: FIXED_CONFIG.branch });
+        if (demoUser && demoCompany) {
+            console.log("Demo branch base data already exists. Skipping base seeding.");
+            return;
+        }
+    }
     console.log("Checking and seeding base 'demo' branch details...");
 
     // 1. Company
@@ -418,9 +426,17 @@ export const seedIngredientsAndRecipes = async () => {
     }
 };
 
-export const seedCurrentMonthSales = async () => {
+export const seedCurrentMonthSales = async (force = false) => {
     try {
-        await ensureDemoBranchData();
+        await ensureDemoBranchData(force);
+
+        if (!force) {
+            const count = await Invoice.countDocuments({ branch: FIXED_CONFIG.branch });
+            if (count > 0) {
+                console.log("Demo invoices already exist. Skipping full historical seeding.");
+                return;
+            }
+        }
 
         const startOfSeeding = moment().tz("Asia/Dhaka").startOf('year'); // January 1st of current year
         const now = moment().tz("Asia/Dhaka");

@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "server": "nodemon server.js"
+    "start": "node --no-deprecation server.js",
+    "server": "node node_modules/nodemon/bin/nodemon.js --no-deprecation server.js"
   },
   "type": "module",
   "author": "Md Sadat Khan",

@@ -8,7 +8,7 @@ dotenv.config();
 async function run() {
     try {
         await connectDB();
-        await seedCurrentMonthSales();
+        await seedCurrentMonthSales(true);
         console.log("Seeding process completed successfully.");
     } catch (error) {
         console.error("Error during seeding process:", error);
