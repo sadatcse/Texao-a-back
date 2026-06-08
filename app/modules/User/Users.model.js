@@ -57,6 +57,8 @@ UserSchema.methods.comparePassword = async function (enteredPassword) {
   return bcrypt.compare(enteredPassword, this.password);
 };
 
-const User = model("User", UserSchema);
+// Indexes for production performance optimization
+UserSchema.index({ branch: 1 });
 
+const User = model("User", UserSchema);
 export default User;

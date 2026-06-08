@@ -143,5 +143,9 @@ InvoiceSchema.pre('save', async function(next) {
     next();
 });
 
+// Indexes for production performance optimization
+InvoiceSchema.index({ branch: 1, createdAt: -1 });
+InvoiceSchema.index({ branch: 1, orderStatus: 1 });
+
 const Invoice = mongoose.models.Invoice || model("Invoice", InvoiceSchema);
 export default Invoice;

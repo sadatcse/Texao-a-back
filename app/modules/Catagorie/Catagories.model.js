@@ -24,6 +24,8 @@ const CategorySchema = Schema(
   { timestamps: true }
 );
 
-const Category = model("Category", CategorySchema);
+// Indexes for production performance optimization
+CategorySchema.index({ branch: 1 });
 
+const Category = model("Category", CategorySchema);
 export default Category;

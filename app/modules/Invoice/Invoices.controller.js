@@ -42,7 +42,7 @@ export async function createInvoice(req, res) {
 
         const result = await Invoice.create(invoiceData);
 
-        if (result && result.branch) {
+        if (req.io && result && result.branch) {
             req.io.to(result.branch).emit('kitchen-update');
         }
 
@@ -129,7 +129,7 @@ export async function removeInvoice(req, res) {
         const result = await Invoice.findByIdAndDelete(id);
 
         if (result) {
-            if (result.branch) {
+            if (req.io && result.branch) {
                 req.io.to(result.branch).emit('kitchen-update');
             }
             res.status(200).json({ message: "Food Order deleted successfully" });
@@ -184,7 +184,7 @@ export const finalizeInvoice = async (req, res) => {
             }
         }
         
-        if (finalizedInvoice && finalizedInvoice.branch) {
+        if (req.io && finalizedInvoice && finalizedInvoice.branch) {
             req.io.to(finalizedInvoice.branch).emit('kitchen-update');
         }
 
@@ -203,7 +203,7 @@ export const finalizeInvoice = async (req, res) => {
 
 export async function getAllInvoices(req, res) {
   try {
-    const result = await Invoice.find();
+    const result = await Invoice.find().lean();
     res.status(200).json(result);
   } catch (err) {
     res.status(500).send({ error: err.message });
@@ -272,7 +272,8 @@ export async function getFilteredInvoices(req, res) {
       Invoice.find(query)
         .sort({ dateTime: -1 })
         .skip(skip)
-        .limit(limitNumber),
+        .limit(limitNumber)
+        .lean(),
       Invoice.countDocuments(query),
     ]);
 
@@ -314,7 +315,7 @@ export async function getKitchenOrdersByBranch(req, res) {
         $lte: endOfToday,
       },
       orderStatus: { $in: ["pending", "cooking"] }
-    }).sort({ dateTime: 'asc' }); // Sort by oldest first
+    }).sort({ dateTime: 'asc' }).lean(); // Sort by oldest first
 
     res.status(200).json(kitchenOrders);
   } catch (err) {
@@ -347,7 +348,7 @@ export async function getSalesByDateRange(req, res) {
         $gte: startOfDay,
         $lte: endOfDay,
       },
-    });
+    }).lean();
 
     if (!invoices || invoices.length === 0) {
       return res.status(200).json([]);
@@ -379,7 +380,7 @@ export async function getSalesByDateRange(req, res) {
     if (category && category !== "All") {
         // --- THIS IS THE CORRECTED LINE ---
         // The field in the Product model is 'category', not 'categoryName'.
-        const productsInCategory = await Product.find({ category: category, branch: branch }).select('productName');
+        const productsInCategory = await Product.find({ category: category, branch: branch }).select('productName').lean();
         const productNamesInCategory = productsInCategory.map(p => p.productName);
         
         filteredProducts = filteredProducts.filter(prod =>
@@ -414,7 +415,7 @@ export async function getInvoicesByCounterDate(req, res) {
 
     if (startDate === endDate) {
       // Fetch invoices for the selected branch and counter on a single day
-      const branchCounterOrders = await Invoice.find({ branch, counter });
+      const branchCounterOrders = await Invoice.find({ branch, counter }).lean();
       const todaysDate = moment(startDate).format("YYYY-MM-DD");
 
       invoices = branchCounterOrders.filter(invoice =>
@@ -429,7 +430,7 @@ export async function getInvoicesByCounterDate(req, res) {
           $gte: new Date(startDate),
           $lte: new Date(endDate),
         },
-      });
+      }).lean();
     }
 
     if (!invoices || invoices.length === 0) {
@@ -497,7 +498,7 @@ export async function getWeeklySalesByMonth(req, res) {
         $gte: startDate.toDate(),
         $lte: endDate.toDate(),
       },
-    });
+    }).lean();
 
     let weeklyTotals = [0, 0, 0, 0, 0];
     let totalMonthSale = 0;

@@ -3,10 +3,10 @@ import environment from "dotenv";
 import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
+import compression from "compression";
 
 import fileUpload from "express-fileupload";
 import helmet from "helmet";
-import passport from "passport";
 
 import connectDB from "./config/db.js";
 import { errorHandler } from "./middleware/errorMiddleware.js";
@@ -21,6 +21,9 @@ environment.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+
+// Compress all JSON API response payloads
+app.use(compression());
 
 // Database connection
 connectDB();
@@ -51,31 +54,34 @@ const corsOptions = {
 
 
 
-const server = http.createServer(app);
+let server = app;
+let io = null;
 
-const io = new Server(server, {
-  cors: corsOptions,
-});
+if (!process.env.VERCEL) {
+  server = http.createServer(app);
+  io = new Server(server, {
+    cors: corsOptions,
+  });
+
+  // Socket connection
+  io.on("connection", (socket) => {
+    console.log("Socket Connected:", socket.id);
+
+    socket.on("join-branch", (branchName) => {
+      socket.join(branchName);
+      console.log(`Socket ${socket.id} joined ${branchName}`);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Socket Disconnected:", socket.id);
+    });
+  });
+}
 
 // Make io available in routes
 app.use((req, res, next) => {
   req.io = io;
   next();
-});
-
-// Socket connection
-io.on("connection", (socket) => {
-  console.log("Socket Connected:", socket.id);
-
-  socket.on("join-branch", (branchName) => {
-    socket.join(branchName);
-
-    console.log(`Socket ${socket.id} joined ${branchName}`);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("Socket Disconnected:", socket.id);
-  });
 });
 
 
@@ -86,7 +92,7 @@ app.use(
   })
 );
 
-app.use(passport.initialize());
+// Passport initialization removed as it is unused
 
 // Apply same CORS everywhere
 app.use(cors(corsOptions));
@@ -123,10 +129,16 @@ app.use(errorHandler);
 
 
 
-server.listen(port, () => {
-  console.log(`Server started at ${new Date()}`);
-  console.log(`Listening on port ${port}`);
+if (!process.env.VERCEL) {
+  server.listen(port, () => {
+    console.log(`Server started at ${new Date()}`);
+    console.log(`Listening on port ${port}`);
 
-  initScheduledJobs();
-  startAutoOrderPosting();
-});
+    initScheduledJobs();
+    startAutoOrderPosting();
+  });
+} else {
+  console.log("Running in Vercel Serverless environment. Ephemeral serverless function ready.");
+}
+
+export default app;

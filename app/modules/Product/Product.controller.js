@@ -3,7 +3,7 @@ import Product from "./Product.model.js";
 // Get all products
 export async function getAllProducts(req, res) {
   try {
-    const result = await Product.find();
+    const result = await Product.find().lean();
     res.status(200).json(result);
   } catch (err) {
     res.status(500).send({ error: err.message });
@@ -20,7 +20,7 @@ export async function searchProductsByBranch(req, res) {
             // Case-insensitive search on productName
             filter.productName = { $regex: query, $options: 'i' };
         }
-        const result = await Product.find(filter);
+        const result = await Product.find(filter).lean();
         res.status(200).json(result);
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -44,7 +44,7 @@ export async function searchActiveProducts(req, res) {
             filter.productName = { $regex: query, $options: 'i' };
         }
 
-        const result = await Product.find(filter);
+        const result = await Product.find(filter).lean();
         res.status(200).json(result);
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -54,7 +54,7 @@ export async function searchActiveProducts(req, res) {
 export async function getProductsByCategory(req, res) {
   const category = req.params.category;
   try {
-    const result = await Product.find({ category });
+    const result = await Product.find({ category }).lean();
     res.status(200).json(result);
   } catch (err) {
     res.status(500).send({ error: err.message });
@@ -71,7 +71,7 @@ export async function getProductsByCategoryAndBranch(req, res) {
       filter.category = category;
     }
 
-    const result = await Product.find(filter);
+    const result = await Product.find(filter).lean();
     res.status(200).json(result);
   } catch (err) {
     res.status(500).send({ error: err.message });
@@ -82,7 +82,7 @@ export async function getProductsByCategoryAndBranch(req, res) {
 export async function getProductsByBranch(req, res) {
   const { branch } = req.params;
   try {
-    const result = await Product.find({ branch });
+    const result = await Product.find({ branch }).lean();
     res.status(200).json(result);
   } catch (err) {
     res.status(500).send({ error: err.message });
@@ -227,7 +227,8 @@ export async function getSuperAdminProducts(req, res) {
         Product.find(query)
             .sort({ createdAt: -1 })
             .skip(skip)
-            .limit(limitNum),
+            .limit(limitNum)
+            .lean(),
         Product.countDocuments(query),
         Product.distinct('category', query.branch ? { branch: query.branch } : {}) // Get categories relevant to the selected branch
     ]);

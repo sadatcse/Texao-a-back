@@ -60,6 +60,10 @@ const ProductSchema = Schema(
   { timestamps: true }
 );
 
+// Indexes for production performance optimization
+ProductSchema.index({ branch: 1, category: 1 });
+ProductSchema.index({ status: 1 });
+
 const Product = model("Product", ProductSchema);
 
 export default Product;

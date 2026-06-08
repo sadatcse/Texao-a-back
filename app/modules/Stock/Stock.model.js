@@ -26,7 +26,8 @@ const StockSchema = Schema(
   { timestamps: true }
 );
 
-// Ensure that there is only one stock document per ingredient per branch
+// Indexes for production performance optimization
+StockSchema.index({ branch: 1 });
 StockSchema.index({ ingredient: 1, branch: 1 }, { unique: true });
 
 const Stock = model("Stock", StockSchema);

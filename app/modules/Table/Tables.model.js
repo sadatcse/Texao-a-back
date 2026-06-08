@@ -18,6 +18,8 @@ const TableSchema = Schema(
   { timestamps: true }
 );
 
-const Table = model("Table", TableSchema);
+// Indexes for production performance optimization
+TableSchema.index({ branch: 1 });
 
+const Table = model("Table", TableSchema);
 export default Table;

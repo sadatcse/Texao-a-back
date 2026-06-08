@@ -37,7 +37,9 @@ const handleUpdateAndEmit = async (req, res, next) => {
       // Get the socket.io instance from the request
       const io = req.io;
       // Emit an event to all clients in the specific branch room
-      io.to(updatedInvoice.branch).emit('kitchen-update');
+      if (io) {
+        io.to(updatedInvoice.branch).emit('kitchen-update');
+      }
     }
   } catch (error) {
     next(error); // Pass the error to the Express error handler
@@ -49,7 +51,9 @@ const handleFinalizeAndEmit = async (req, res, next) => {
     const finalizedInvoice = await finalizeInvoice(req, res, next);
     if (finalizedInvoice && finalizedInvoice.branch) {
       const io = req.io;
-      io.to(finalizedInvoice.branch).emit('kitchen-update');
+      if (io) {
+        io.to(finalizedInvoice.branch).emit('kitchen-update');
+      }
     }
   } catch (error) {
     next(error);

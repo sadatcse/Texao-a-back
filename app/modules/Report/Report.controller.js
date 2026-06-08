@@ -137,43 +137,56 @@ export const getStockSalesComparison = async (req, res) => {
             return res.status(200).json({ data: [], pagination: { totalItems: 0, totalPages: 1, currentPage: 1 } });
         }
         
-        const reportPromises = allStockItems.map(async (stockItem) => {
+        const stockIds = allStockItems.map(item => item._id);
+
+        // Fetch all calculations in bulk for performance
+        const [lastMovements, bulkPurchases, bulkSalesUsage] = await Promise.all([
+            // Bulk last movements before period grouped by stock
+            StockMovement.aggregate([
+                { $match: { stock: { $in: stockIds }, createdAt: { $lt: fromDate } } },
+                { $sort: { createdAt: -1 } },
+                { $group: { _id: "$stock", lastMovement: { $first: "$$ROOT" } } }
+            ]),
+            // Bulk purchases grouped by ingredient
+            Purchase.aggregate([
+                { $match: { branch, purchaseDate: { $gte: fromDate, $lte: toDate } } },
+                { $unwind: "$items" },
+                { $group: { _id: "$items.ingredient", total: { $sum: "$items.quantity" } } }
+            ]),
+            // Bulk sales usage grouped by ingredient
+            Invoice.aggregate([
+                { $match: { branch, dateTime: { $gte: fromDate, $lte: toDate } } },
+                { $unwind: "$products" },
+                { $lookup: { from: "recipes", localField: "products.productId", foreignField: "productId", as: "recipe" } },
+                { $unwind: "$recipe" },
+                { $unwind: "$recipe.ingredients" },
+                { $group: { _id: "$recipe.ingredients.ingredientId", total: { $sum: { $multiply: ["$products.qty", "$recipe.ingredients.quantity"] } } } }
+            ])
+        ]);
+
+        // Convert results to Maps for O(1) lookup
+        const lastMovementMap = new Map(lastMovements.map(m => [m._id.toString(), m.lastMovement]));
+        const purchaseMap = new Map(bulkPurchases.map(p => [p._id.toString(), p.total]));
+        const salesUsageMap = new Map(bulkSalesUsage.map(s => [s._id.toString(), s.total]));
+
+        const fullReport = allStockItems.map((stockItem) => {
             if (!stockItem.ingredient) {
                 return null; // Skip orphaned stock records
             }
             const ingredientId = stockItem.ingredient._id;
-            
-            // The rest of the calculations run on the pre-filtered items
-            const [lastMovementBeforePeriod, purchases, salesUsage] = await Promise.all([
-                StockMovement.findOne({ stock: stockItem._id, createdAt: { $lt: fromDate } }).sort({ createdAt: -1 }),
-                Purchase.aggregate([
-                    { $match: { branch, purchaseDate: { $gte: fromDate, $lte: toDate } } },
-                    { $unwind: "$items" },
-                    { $match: { "items.ingredient": ingredientId } },
-                    { $group: { _id: null, total: { $sum: "$items.quantity" } } }
-                ]),
-                Invoice.aggregate([
-                    { $match: { branch, dateTime: { $gte: fromDate, $lte: toDate } } },
-                    { $unwind: "$products" },
-                    { $lookup: { from: "recipes", localField: "products.productId", foreignField: "productId", as: "recipe" } },
-                    { $unwind: "$recipe" },
-                    { $unwind: "$recipe.ingredients" },
-                    { $match: { "recipe.ingredients.ingredientId": ingredientId } },
-                    { $group: { _id: null, total: { $sum: { $multiply: ["$products.qty", "$recipe.ingredients.quantity"] } } } }
-                ])
-            ]);
-            
+            const ingredientIdStr = ingredientId.toString();
+            const stockIdStr = stockItem._id.toString();
+
+            const lastMovementBeforePeriod = lastMovementMap.get(stockIdStr);
             const openingStock = lastMovementBeforePeriod ? lastMovementBeforePeriod.afterQuantity : 0;
-            const stockIn = purchases[0]?.total || 0;
-            const stockOut = salesUsage[0]?.total || 0;
+            const stockIn = purchaseMap.get(ingredientIdStr) || 0;
+            const stockOut = salesUsageMap.get(ingredientIdStr) || 0;
             const systemClosingStock = openingStock + stockIn - stockOut;
             const physicalStock = stockItem.quantityInStock;
             const variance = physicalStock - systemClosingStock;
 
             return { ingredientId, name: stockItem.ingredient.name, unit: stockItem.ingredient.unit, openingStock, stockIn, stockOut, systemClosingStock, physicalStock, variance };
-        });
-
-        const fullReport = (await Promise.all(reportPromises)).filter(Boolean); // Filter out nulls
+        }).filter(Boolean);
         
         // Paginate the final result
         const pageNumber = parseInt(page);
